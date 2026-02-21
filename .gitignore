@@ -19,4 +19,5 @@ dataset*/
 bundle/
 
 # Training artifacts directory
+.yolo/
 runs/

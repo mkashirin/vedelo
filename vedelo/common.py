@@ -1,5 +1,4 @@
 import os
-import sys
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -7,7 +6,9 @@ from pathlib import Path
 import torch as pt
 
 
-BUNDLE_URL = "https://storage.yandexcloud.net/lab-storage/vedelo_bundle.zip"
+_BASE_URL = "https://storage.yandexcloud.net/lab-storage"
+MODEL_URL = f"{_BASE_URL}/vedelo_model.zip"
+DATASET_URL = f"{_BASE_URL}/vedelo_dataset.zip"
 
 
 def device_available() -> str:
@@ -21,10 +22,20 @@ def device_available() -> str:
     return using
 
 
-def download_bundle(output_path: Path) -> None:
-    print(f"Downloading {BUNDLE_URL}...")
+def get_model(output_path: Path) -> None:
+    _get_unpacked(MODEL_URL, output_path)
+
+
+def get_dataset(output_path: Path) -> None:
+    _get_unpacked(DATASET_URL, output_path)
+
+
+def _get_unpacked(
+    url: str, output_path: Path, remove_zip: bool = True
+) -> None:
+    print(f"Downloading {url}...")
     try:
-        with urllib.request.urlopen(BUNDLE_URL) as response:
+        with urllib.request.urlopen(url) as response:
             if response.status != 200:
                 raise RuntimeError(
                     f"Download failed with status {response.status}"
@@ -42,3 +53,6 @@ def download_bundle(output_path: Path) -> None:
     except zipfile.BadZipFile:
         raise RuntimeError("Downloaded file is not a valid ZIP archive")
     print("Extraction complete.")
+
+    if remove_zip:
+        os.remove(output_path)
