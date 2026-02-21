@@ -3,12 +3,12 @@ from pathlib import Path
 
 from ultralytics import YOLO
 
-from vedelo import device
+from vedelo import device_available, download_bundle
 
 
-ROOT = Path(__file__).resolve()
-DATA = "dataset/data.yaml"
-DEVICE = device()
+ROOT = Path(__file__).resolve().parent
+DATA = "bundle/dataset/data.yaml"
+DEVICE = device_available()
 MODE = "train"
 ARGS = dict(
     data=DATA,
@@ -31,8 +31,9 @@ ARGS = dict(
 
 
 if __name__ == "__main__":
-    data_path = ROOT / Path("dataset/imgs+labels")
-    data = f"""path: {ROOT}
+    download_bundle(ROOT / "bundle.zip")
+    data_path = ROOT / "bundle/dataset/imgs+labels"
+    data = f"""path: {data_path}
 
 train: imgs/train
 val: imgs/val
@@ -47,3 +48,4 @@ names:
     model = YOLO("models/yolo26m.pt")
     warnings.simplefilter("ignore")
     getattr(model, MODE)(**ARGS)
+    model.export(format="torchscript")

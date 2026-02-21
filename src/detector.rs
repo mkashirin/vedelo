@@ -60,10 +60,10 @@ impl YoloDetector {
         let (input_tensor, pad_info) = self.preprocess(frame)?;
         let output = self.model.forward_ts(&[&input_tensor])?;
 
-        let output = if output.size()[1] == 6 {
-            output.transpose(1, 2)
-        } else {
+        let output = if output.size()[1] != 6 {
             output.shallow_clone()
+        } else {
+            output.transpose(1, 2)
         };
 
         let detections_t = output.squeeze_dim(0).to(Device::Cpu);
@@ -110,14 +110,13 @@ impl YoloDetector {
     }
 
     fn preprocess(&self, frame: &Mat) -> Result<(Tensor, PadInfo)> {
-        let width = frame.cols();
-        let height = frame.rows();
+        let w = frame.cols();
+        let h = frame.rows();
         let target = self.input_size;
 
-        let ratio =
-            (target as f64 / width as f64).min(target as f64 / height as f64);
-        let new_w = (width as f64 * ratio).round() as i32;
-        let new_h = (height as f64 * ratio).round() as i32;
+        let ratio = (target as f64 / w as f64).min(target as f64 / h as f64);
+        let new_w = (w as f64 * ratio).round() as i32;
+        let new_h = (h as f64 * ratio).round() as i32;
 
         let mut resized = Mat::default();
         imgproc::resize(

@@ -13,7 +13,10 @@ wheels/
 target/
 
 # Dataset directory
-dataset/
+dataset*/
 
-# Models directory
-models/
+# Vedelo bundle
+bundle/
+
+# Training artifacts directory
+runs/
