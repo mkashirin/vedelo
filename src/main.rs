@@ -74,10 +74,6 @@ fn main() -> Result<()> {
 
         writer.write(&frame)?;
         highgui::imshow("YOLO Tracker", &frame)?;
-
-        if highgui::wait_key(1)? == 113 {
-            break;
-        }
     }
 
     println!("Done. Saved to: {}", args.destination);

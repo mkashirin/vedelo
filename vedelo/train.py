@@ -31,8 +31,8 @@ EXPORT_FORMAT = "torchscript"
 
 
 if __name__ == "__main__":
-    if not (ROOT / "dataset").exists():
-        get_dataset(ROOT / "dataset.zip")
+    if not ("dataset").exists():
+        get_dataset("dataset.zip")
     data_path: Path = ROOT / "dataset/images+labels"
     data = f"""path: {data_path}
 
@@ -43,7 +43,7 @@ names:
   0: car
   1: truck
     """
-    with open(ROOT / Path(DATA), "w") as f:
+    with open(DATA, "w") as f:
         f.write(data)
 
     model = YOLO("pretrained/yolo26s.pt")
