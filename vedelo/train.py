@@ -1,6 +1,6 @@
+import os
 import warnings
 from pathlib import Path
-from typing import Any, Dict
 
 from ultralytics import YOLO
 
@@ -12,17 +12,16 @@ DEVICE: str = device_available()
 MODE = "train"
 ARGS = dict(
     data=DATA,
-    epochs=100,
-    patience=5,
-    batch=4,
-    imgsz=1280,
-    save_period=10,
+    epochs=200,
+    patience=20,
+    batch=12,
+    imgsz=960,
+    save_period=20,
     device=DEVICE,
     workers=0,
-    project="vedelo",
-    name="Vedelo-V1",
+    project=ROOT / "artifacts",
+    name="Vedelo-V1S",
     exist_ok=True,
-    optimizer="MuSGD",
     rect=True,
     cos_lr=True,
     amp=True,
@@ -47,7 +46,8 @@ names:
     with open(ROOT / Path(DATA), "w") as f:
         f.write(data)
 
-    model = YOLO("pretrained/yolo26m.pt")
+    model = YOLO("pretrained/yolo26s.pt")
     warnings.simplefilter("ignore")
     getattr(model, MODE)(**ARGS)
     model.export(format=EXPORT_FORMAT)
+    os.remove("yolo26n.pt")

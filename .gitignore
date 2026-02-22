@@ -16,6 +16,7 @@ target/
 dataset/
 vedelo_dataset.zip
 
-# Training artifacts directory
+# Training artifacts
 pretrained/
-runs/
+artifacts/
+yolo*.pt
