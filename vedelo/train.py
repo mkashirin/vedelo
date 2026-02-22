@@ -34,11 +34,11 @@ EXPORT_FORMAT = "torchscript"
 if __name__ == "__main__":
     if not (ROOT / "dataset").exists():
         get_dataset(ROOT / "dataset.zip")
-    data_path: Path = ROOT / "dataset/imgs+labels"
+    data_path: Path = ROOT / "dataset/images+labels"
     data = f"""path: {data_path}
 
-train: imgs/train
-val: imgs/val
+train: images/train
+val: images/val
 nc: 2
 names:
   0: car
