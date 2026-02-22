@@ -8,12 +8,14 @@ from vedelo.common import device_available, create_zip
 
 
 MODEL = "Vedelo-V1S"
+CHECKPOINT = "epoch40"
 DEVICE = device_available()
 EXPORT_FORMATS = ("torchscript", "onnx")
-ZIP_DATASET = True
+ZIP_DATASET = False
+ZIP_MODEL = False
 
 if __name__ == "__main__":
-    model = YOLO(f"artifacts/{MODEL}/weights/best.pt")
+    model = YOLO(f"artifacts/{MODEL}/weights/{CHECKPOINT}.pt")
     for format in EXPORT_FORMATS:
         model.export(format=format, half=True, dynamic=True, device=DEVICE)
 
@@ -27,11 +29,11 @@ if __name__ == "__main__":
         )
 
     weights_dir = Path(f"artifacts/{MODEL}/weights")
-    if weights_dir.exists():
+    if weights_dir.exists() and ZIP_MODEL:
         export_files = tuple(
             (f"{weights_dir}/{f}", f"{weights_dir}/{MODEL}.{f.split('.')[-1]}")
             for f in os.listdir(weights_dir)
-            if "best" in f
+            if CHECKPOINT in f
         )
         for src, dest in export_files:
             shutil.copy(src, dest)
