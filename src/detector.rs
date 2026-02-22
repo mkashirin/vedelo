@@ -76,36 +76,42 @@ impl YoloDetector {
 
         for i in 0..num_dets {
             let offset = i * 6;
-
             if offset + 5 >= flat_data.len() {
                 break;
             }
 
             let score = flat_data[offset + 4];
+
             if score as f64 > conf_threshold {
                 let class_id = flat_data[offset + 5] as i32;
-                let x = flat_data[offset] as f64;
-                let y = flat_data[offset + 1] as f64;
-                let w = flat_data[offset + 2] as f64;
-                let h = flat_data[offset + 3] as f64;
 
-                // Coordinate Restoration
-                let x_unpad = x - pad_info.dw;
-                let y_unpad = y - pad_info.dh;
+                let x1_model = flat_data[offset] as f64;
+                let y1_model = flat_data[offset + 1] as f64;
+                let x2_model = flat_data[offset + 2] as f64;
+                let y2_model = flat_data[offset + 3] as f64;
 
-                let x_center = x_unpad / pad_info.ratio;
-                let y_center = y_unpad / pad_info.ratio;
-                let width = w / pad_info.ratio;
-                let height = h / pad_info.ratio;
+                // 1. Remove Padding (Letterbox shift)
+                let x1_unpad = x1_model - pad_info.dw;
+                let y1_unpad = y1_model - pad_info.dh;
+                let x2_unpad = x2_model - pad_info.dw;
+                let y2_unpad = y2_model - pad_info.dh;
 
-                let x0 = (x_center - width / 2.0).round() as i32;
-                let y0 = (y_center - height / 2.0).round() as i32;
-                let w_final = width.round() as i32;
-                let h_final = height.round() as i32;
+                // 2. Scale to Original Resolution
+                let x1_orig = x1_unpad / pad_info.ratio;
+                let y1_orig = y1_unpad / pad_info.ratio;
+                let x2_orig = x2_unpad / pad_info.ratio;
+                let y2_orig = y2_unpad / pad_info.ratio;
 
+                // 3. Convert to Rect (x, y, w, h)
+                let w_final = (x2_orig - x1_orig).round() as i32;
+                let h_final = (y2_orig - y1_orig).round() as i32;
+                let x_final = x1_orig.round() as i32;
+                let y_final = y1_orig.round() as i32;
+
+                // Sanity check to ignore invalid boxes
                 if w_final > 0 && h_final > 0 {
                     results.push(Detection {
-                        rect: Rect::new(x0, y0, w_final, h_final),
+                        rect: Rect::new(x_final, y_final, w_final, h_final),
                         score,
                         class_id,
                     });
