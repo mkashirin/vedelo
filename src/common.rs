@@ -1,7 +1,7 @@
 use crate::tracker::Track;
 use anyhow::Result;
 use opencv::{
-    core::{AlgorithmHint, Point, Rect, Scalar},
+    core::{Point, Rect, Scalar},
     imgproc,
     prelude::*,
 };
@@ -65,6 +65,7 @@ pub fn cvt_color_wrapper(
     dst_cn: i32,
 ) -> opencv::Result<()> {
     // MacOS/Newer OpenCV requires 5 arguments.
+    use opencv::core::AlgorithmHint;
     imgproc::cvt_color(src, dst, code, dst_cn, AlgorithmHint::ALGO_HINT_DEFAULT)
 }
 
