@@ -7,8 +7,8 @@ import torch as pt
 
 
 _BASE_URL = "https://storage.yandexcloud.net/lab-storage"
-MODEL_URL = f"{_BASE_URL}/vedelo_model.zip"
-DATASET_URL = f"{_BASE_URL}/vedelo_dataset.zip"
+MODEL_URL = f"{_BASE_URL}/vedelo-v1s.zip"
+DATASET_URL = f"{_BASE_URL}/vedelo2.zip"
 
 
 def device_available() -> str:

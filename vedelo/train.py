@@ -14,8 +14,8 @@ ARGS = dict(
     data=DATA,
     epochs=200,
     patience=20,
-    batch=12,
-    imgsz=960,
+    batch=8,
+    imgsz=1280,
     save_period=20,
     device=DEVICE,
     workers=0,
@@ -31,9 +31,9 @@ EXPORT_FORMAT = "torchscript"
 
 
 if __name__ == "__main__":
-    if not ("dataset").exists():
-        get_dataset("dataset.zip")
-    data_path: Path = ROOT / "dataset/images+labels"
+    if not Path("dataset").exists():
+        get_dataset(Path("dataset.zip"))
+    data_path: Path = ROOT / "dataset"
     data = f"""path: {data_path}
 
 train: images/train
@@ -49,5 +49,5 @@ names:
     model = YOLO("pretrained/yolo26s.pt")
     warnings.simplefilter("ignore")
     getattr(model, MODE)(**ARGS)
-    model.export(format=EXPORT_FORMAT)
+    model.export(format=EXPORT_FORMAT, half=True, dynamic=True)
     os.remove("yolo26n.pt")
