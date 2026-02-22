@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.14"
 resolution-markers = [
     "sys_platform == 'win32'",
@@ -855,6 +855,8 @@ name = "vedelo"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "matplotlib" },
+    { name = "polars" },
     { name = "torch" },
     { name = "ultralytics" },
 ]
@@ -867,6 +869,8 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "matplotlib", specifier = ">=3.10.8" },
+    { name = "polars", specifier = ">=1.38.1" },
     { name = "torch", specifier = ">=2.10.0" },
     { name = "ultralytics", specifier = ">=8.4.14" },
 ]

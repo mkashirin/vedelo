@@ -12,7 +12,7 @@ DEVICE: str = device_available()
 MODE = "train"
 ARGS = dict(
     data=DATA,
-    epochs=100,
+    epochs=60,
     patience=20,
     batch=8,
     imgsz=1280,
@@ -45,7 +45,7 @@ names:
     with open(DATA, "w") as f:
         f.write(data)
 
-    model = YOLO("pretrained/yolo26s.pt")
+    model = YOLO("artifacts/pretrained/yolo26s.pt")
     warnings.simplefilter("ignore")
     getattr(model, MODE)(**ARGS)
     os.remove("yolo26n.pt")

@@ -15,9 +15,9 @@ target/
 # Dataset directory
 dataset/
 
-# Training artifacts
-pretrained/
+# Artifacts
 artifacts/
+finetuned/
 yolo*.pt
 
 # Release archives
