@@ -27,9 +27,10 @@ search for LibTorch's shared library files):
 LIBTROCH=$(python -c "from vedelo import *; print(PYTORCH)")/lib \
 LD_LIBRARY_PATH=$LIBTORCH:$LD_LIBRARY_PATH \
 ./target/release/vedelo \
-    --model artifacts/Vedelo-V1S/weights/best.torchscript \
-    --source dataset/test/video_test.mp4 \
-    --destination video_test_pred.mp4 \
-    --imgsz 1280
+    -m artifacts/Vedelo-V1S/weights/epoch40.torchscript \
+    -s dataset/test/video_test.mp4 \
+    -d video_test_pred.mp4 \
+    --conf 0.2 \
+    --iou-thresh 0.15 \
 ```
 
