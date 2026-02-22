@@ -22,20 +22,23 @@ struct Args {
     #[arg(short, long, value_name = "PATH")]
     destination: String,
 
-    #[arg(long, default_value_t = 0.5)]
+    #[arg(long, default_value_t = 0.2)]
     conf: f64,
 
-    #[arg(long, default_value_t = 0.3)]
+    #[arg(long, default_value_t = 0.15)]
     iou_thresh: f64,
 
-    #[arg(long, default_value_t = 960)]
+    #[arg(long, default_value_t = 1280)]
     imgsz: i32,
+
+    #[arg(long, default_value_t = 60)]
+    max_age: i32,
 }
 
 fn main() -> Result<()> {
     let args = Args::parse();
     let detector = YoloDetector::new(&args.model, args.imgsz)?;
-    let mut tracker = SortTracker::new(30, args.iou_thresh);
+    let mut tracker = SortTracker::new(args.max_age, args.iou_thresh);
 
     let mut cam =
         videoio::VideoCapture::from_file(&args.source, videoio::CAP_FFMPEG)?;

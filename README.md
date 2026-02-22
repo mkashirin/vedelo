@@ -24,18 +24,12 @@ python -c "from vedelo import *; get_model(ROOT / 'finetuned.zip')"
 To run the app built (exports are necessary, tch-rs needs to know, where to
 search for LibTorch's shared library files):
 ```shell
-export LIBTROCH=$(python -c "from vedelo import *; print(PYTORCH)")
-export LD_LIBRARY_PATH=$LIBTORCH:$LD_LIBRARY_PATH
-cargo run --release \
-    --model finetuned/Vedelo-V1S
-    --source dataset/test/video_test.mp4
-    --destination video_test_pred.mp4
-```
-
 LIBTROCH=$(python -c "from vedelo import *; print(PYTORCH)")/lib \
 LD_LIBRARY_PATH=$LIBTORCH:$LD_LIBRARY_PATH \
 ./target/release/vedelo \
-    --model artifacts/Vedelo-V1S/weights/epoch20.torchscript \
+    --model artifacts/Vedelo-V1S/weights/best.torchscript \
     --source dataset/test/video_test.mp4 \
     --destination video_test_pred.mp4 \
     --imgsz 1280
+```
+
