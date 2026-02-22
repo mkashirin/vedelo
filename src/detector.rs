@@ -7,6 +7,8 @@ use opencv::{
 use std::ops::Div;
 use tch::{Device, Kind, Tensor};
 
+use crate::common::cvt_color_wrapper;
+
 #[derive(Debug, Clone)]
 pub struct Detection {
     pub rect: Rect,
@@ -157,7 +159,7 @@ impl YoloDetector {
         )?;
 
         let mut rgb = Mat::default();
-        imgproc::cvt_color(&padded, &mut rgb, imgproc::COLOR_BGR2RGB, 0)?;
+        cvt_color_wrapper(&padded, &mut rgb, imgproc::COLOR_BGR2RGB, 0)?;
 
         let size = rgb.size()?;
         let h = size.height;

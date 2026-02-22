@@ -1,7 +1,7 @@
 use crate::tracker::Track;
 use anyhow::Result;
 use opencv::{
-    core::{Point, Rect, Scalar},
+    core::{AlgorithmHint, Point, Rect, Scalar},
     imgproc,
     prelude::*,
 };
@@ -55,4 +55,26 @@ pub fn draw_prediction(frame: &mut Mat, obj: &Track) -> Result<()> {
     )?;
 
     Ok(())
+}
+
+#[cfg(target_os = "macos")]
+pub fn cvt_color_wrapper(
+    src: &Mat,
+    dst: &mut Mat,
+    code: i32,
+    dst_cn: i32,
+) -> opencv::Result<()> {
+    // MacOS/Newer OpenCV requires 5 arguments.
+    imgproc::cvt_color(src, dst, code, dst_cn, AlgorithmHint::ALGO_HINT_DEFAULT)
+}
+
+#[cfg(target_os = "linux")]
+pub fn cvt_color_wrapper(
+    src: &Mat,
+    dst: &mut Mat,
+    code: i32,
+    dst_cn: i32,
+) -> opencv::Result<()> {
+    // Linux/Older OpenCV requires 4 arguments.
+    imgproc::cvt_color(src, dst, code, dst_cn)
 }
