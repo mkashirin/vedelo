@@ -9,14 +9,14 @@ uv venv && uv sync
 
 # When you do:
 source .venv/bin/activate
-export LIBTORCH_USE_PYTORCH=1
-cargo build
+export LIBTROCH=$(python -c "import torch; import os; print(os.path.dirname(torch.__file__))")
+export DEP_TCH_LIBTORCH_LIB=$LIBTORCH
+export LD_LIBRARY_PATH=$LIBTORCH:$LD_LIBRARY_PATH
+LIBTORCH_USE_PYTORCH=1 cargo build
 ```
 
 To run the app built:
 ```shell
-export LIBTROCH=$(python -c "import torch; import os; print(os.path.join(os.path.dirname(torch.__file__), 'lib'))")
-export LD_LIBRARY_PATH=$LIBTORCH:$LD_LIBRARY_PATH
 cargo run --release
 ```
 

@@ -13,13 +13,13 @@ use crate::tracker::SortTracker;
 #[derive(Parser, Debug)]
 #[command(author, version, about)]
 struct Args {
-    #[arg(short, long, value_hint = "PATH")]
+    #[arg(short, long, value_name = "PATH")]
     model: String,
 
-    #[arg(short, long, value_hint = "PATH")]
+    #[arg(short, long, value_name = "PATH")]
     source: String,
 
-    #[arg(short, long, value_hint = "PATH")]
+    #[arg(short, long, value_name = "PATH")]
     destination: String,
 
     #[arg(long, default_value_t = 0.5)]
@@ -28,7 +28,7 @@ struct Args {
     #[arg(long, default_value_t = 0.3)]
     iou_thresh: f64,
 
-    #[arg(long, default_value_t = 1280)]
+    #[arg(long, default_value_t = 960)]
     imgsz: i32,
 }
 

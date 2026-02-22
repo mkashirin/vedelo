@@ -58,24 +58,30 @@ impl YoloDetector {
         conf_threshold: f64,
     ) -> Result<Vec<Detection>> {
         let (input_tensor, pad_info) = self.preprocess(frame)?;
-        let output = self.model.forward_ts(&[&input_tensor])?;
 
+        let output = self.model.forward_ts(&[&input_tensor])?;
         let output = if output.size()[1] != 6 {
             output.shallow_clone()
         } else {
             output.transpose(1, 2)
         };
 
-        let detections_t = output.squeeze_dim(0).to(Device::Cpu);
-        let num_dets = detections_t.size()[0] as usize;
-        let flat_data: Vec<f32> = Vec::<f32>::try_from(detections_t)?;
+        let detections_2d = output.squeeze_dim(0).to(self.device);
+        let num_dets = detections_2d.size()[0] as usize;
+
+        let flat_tensor = detections_2d.reshape(&[-1]);
+        let flat_data: Vec<f32> = Vec::<f32>::try_from(flat_tensor)?;
 
         let mut results = Vec::with_capacity(num_dets);
 
         for i in 0..num_dets {
             let offset = i * 6;
-            let score = flat_data[offset + 4];
 
+            if offset + 5 >= flat_data.len() {
+                break;
+            }
+
+            let score = flat_data[offset + 4];
             if score as f64 > conf_threshold {
                 let class_id = flat_data[offset + 5] as i32;
                 let x = flat_data[offset] as f64;
@@ -83,6 +89,7 @@ impl YoloDetector {
                 let w = flat_data[offset + 2] as f64;
                 let h = flat_data[offset + 3] as f64;
 
+                // Coordinate Restoration
                 let x_unpad = x - pad_info.dw;
                 let y_unpad = y - pad_info.dh;
 
