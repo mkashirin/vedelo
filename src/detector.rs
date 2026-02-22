@@ -33,7 +33,7 @@ impl YoloDetector {
         let device = if tch::utils::has_mps() {
             println!("Detector running on MPS");
             Device::Mps
-        } else if tch::utils::has_cuda() {
+        } else if tch::Cuda::is_available() {
             println!("Detector running on CUDA");
             Device::Cuda(0)
         } else {
