@@ -14,9 +14,7 @@ target/
 
 # Dataset directory
 dataset/
-
-# Vedelo bundle
-bundle/
+vedelo_dataset.zip
 
 # Training artifacts directory
 pretrained/

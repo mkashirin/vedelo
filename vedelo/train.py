@@ -32,7 +32,8 @@ EXPORT_FORMAT = "torchscript"
 
 
 if __name__ == "__main__":
-    get_dataset(ROOT / "dataset.zip")
+    if not (ROOT / "dataset").exists():
+        get_dataset(ROOT / "dataset.zip")
     data_path: Path = ROOT / "dataset/imgs+labels"
     data = f"""path: {data_path}
 
