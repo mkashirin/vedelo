@@ -4,12 +4,10 @@ from typing import Any, Dict
 
 from ultralytics import YOLO
 
-from vedelo import device_available, get_dataset
+from vedelo import ROOT, device_available, get_dataset
 
 
-_DEPTH: int = 1
-ROOT: Path = Path(__file__).resolve().parents[_DEPTH]
-DATA = "bundle/dataset/data.yaml"
+DATA = "dataset/data.yaml"
 DEVICE: str = device_available()
 MODE = "train"
 ARGS = dict(
@@ -22,7 +20,7 @@ ARGS = dict(
     device=DEVICE,
     workers=0,
     project="vedelo",
-    name="Vedelo-1",
+    name="Vedelo-V1",
     exist_ok=True,
     optimizer="MuSGD",
     rect=True,
@@ -30,6 +28,7 @@ ARGS = dict(
     amp=True,
     compile=True,
 )
+EXPORT_FORMAT = "torchscript"
 
 
 if __name__ == "__main__":
@@ -47,7 +46,7 @@ names:
     with open(ROOT / Path(DATA), "w") as f:
         f.write(data)
 
-    model = YOLO(".yolo/yolo26m.pt")
+    model = YOLO("pretrained/yolo26m.pt")
     warnings.simplefilter("ignore")
     getattr(model, MODE)(**ARGS)
-    model.export(format="torchscript")
+    model.export(format=EXPORT_FORMAT)
