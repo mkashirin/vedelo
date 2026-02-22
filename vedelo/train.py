@@ -12,7 +12,7 @@ DEVICE: str = device_available()
 MODE = "train"
 ARGS = dict(
     data=DATA,
-    epochs=200,
+    epochs=100,
     patience=20,
     batch=8,
     imgsz=1280,
@@ -27,7 +27,6 @@ ARGS = dict(
     amp=True,
     compile=True,
 )
-EXPORT_FORMAT = "torchscript"
 
 
 if __name__ == "__main__":
@@ -49,5 +48,4 @@ names:
     model = YOLO("pretrained/yolo26s.pt")
     warnings.simplefilter("ignore")
     getattr(model, MODE)(**ARGS)
-    model.export(format=EXPORT_FORMAT, half=True, dynamic=True)
     os.remove("yolo26n.pt")

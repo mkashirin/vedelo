@@ -56,3 +56,20 @@ def _get_unpacked(
 
     if remove_zip:
         os.remove(output_path)
+
+
+def create_zip(zip_name: str, *paths):
+    with zipfile.ZipFile(
+        zip_name, "w", compression=zipfile.ZIP_DEFLATED
+    ) as zip_ref:
+        for path in paths:
+            path = Path(path)
+
+            if path.is_file():
+                zip_ref.write(path, arcname=path.name)
+            elif path.is_dir():
+                for file in path.rglob("*"):
+                    if file.is_file():
+                        zip_ref.write(
+                            file, arcname=file.relative_to(path.parent)
+                        )

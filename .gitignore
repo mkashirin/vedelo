@@ -14,9 +14,11 @@ target/
 
 # Dataset directory
 dataset/
-vedelo_dataset.zip
 
 # Training artifacts
 pretrained/
 artifacts/
 yolo*.pt
+
+# Release archives
+release/
