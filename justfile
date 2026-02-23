@@ -1,55 +1,38 @@
 set shell := ["bash", "-cu"]
 
+if os_family() != "unix" { error("Windows build is not supported") } else {}
+if os() != "linux" { error("Builds on linux only") }
+
 default: build
 
-# Detect OS once
-os := `uname`
-
-venv:
-    @if [ ! -d ".venv" ]; then
+@venv:
+    #!/usr/bin/env sh
+    if [ ! -d .venv ]; then
         echo "Creating virtual environment..."
-        uv venv
-        uv sync
+        uv venv && sync
     fi
+    source .venv/bin/activate
 
 sync:
     uv sync
 
-libtorch :=
+export LIBTORCH :=
     `source .venv/bin/activate && \
         python -c "from vedelo import *; print(PYTORCH)"`/lib
+export DEP_TCH_LIBTORCH_LIB := $LIBTORCH
+export LIBTORCH_USE_PYTORCH := 1
+export LD_LIBRARY_PATH := $LIBTORCH:${LD_LIBRARY_PATH
 
 build: venv
-    @echo "Building on {{os}}"
-    source .venv/bin/activate
-    export DEP_TCH_LIBTORCH_LIB="{{libtorch}}"
-    export LIBTORCH_USE_PYTORCH=1
-    if [[ "{{os}}" == "Darwin" ]]; then
-        export DYLD_LIBRARY_PATH="$(brew --prefix llvm)/lib:${DYLD_LIBRARY_PATH:-}"
-    fi
     cargo build --release
+    ln -s target/release/vedelo vedelo
 
 build-dev: venv
-    @echo "Building (dev) on {{os}}"
-    source .venv/bin/activate
-    export DEP_TCH_LIBTORCH_LIB="{{libtorch}}"
-    export LIBTORCH_USE_PYTORCH=1
-    if [[ "{{os}}" == "Darwin" ]]; then
-        export DYLD_LIBRARY_PATH="$(brew --prefix llvm)/lib:${DYLD_LIBRARY_PATH:-}"
-    fi
     cargo build
 
 run: build
-    @echo "Running on {{os}}"
-    source .venv/bin/activate
-    python -c 'from vedelo import *; get_model("finetuned.zip")'
-    export LIBTORCH="{{libtorch}}"
-    if [[ "{{os}}" == "Darwin" ]]; then
-        export DYLD_LIBRARY_PATH="$LIBTORCH:${DYLD_LIBRARY_PATH:-}"
-    else
-        export LD_LIBRARY_PATH="$LIBTORCH:${LD_LIBRARY_PATH:-}"
-    fi
-    ./target/release/vedelo \
+    python -c "from vedelo import *; get_model('finetuned.zip')"
+    vedelo \
         -m finetuned/Vedelo-V1S.torchscript \
         -s dataset/test/video_test.mp4 \
         -d static/video_track.mp4 \
