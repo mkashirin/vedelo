@@ -2,7 +2,7 @@ import polars as pl
 import matplotlib.pyplot as plt
 
 
-RESULTS = "artifacts/Vedelo-V1S/results.csv"
+RESULTS = "artifacts/vedelo-v1s/results.csv"
 
 if __name__ == "__main__":
     df = pl.read_csv(RESULTS)

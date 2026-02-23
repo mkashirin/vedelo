@@ -2,7 +2,7 @@ fn main() {
     let os =
         std::env::var("CARGO_CFG_TARGET_OS").expect("Unable to get TARGET_OS");
     if os.as_str() != "linux" {
-        // Do nothing for Windows and macOS.
+        panic!("Can only build on Linux")
     } else {
         if let Some(lib_path) = std::env::var_os("DEP_TCH_LIBTORCH_LIB") {
             println!(

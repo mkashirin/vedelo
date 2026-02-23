@@ -1,39 +1,42 @@
 set shell := ["bash", "-cu"]
 
-if os_family() != "unix" { error("Windows build is not supported") } else {}
-if os() != "linux" { error("Builds on linux only") }
+_os_family := if os_family() != "unix" {
+    error("Windows build is not supported")
+} else { "" }
+_os := if os() != "linux" { error("Builds on linux only") } else { "" }
 
 default: build
 
-@venv:
+venv:
     #!/usr/bin/env sh
     if [ ! -d .venv ]; then
         echo "Creating virtual environment..."
-        uv venv && sync
+        uv venv && uv sync
     fi
-    source .venv/bin/activate
 
 sync:
     uv sync
 
-export LIBTORCH :=
-    `source .venv/bin/activate && \
-        python -c "from vedelo import *; print(PYTORCH)"`/lib
-export DEP_TCH_LIBTORCH_LIB := $LIBTORCH
-export LIBTORCH_USE_PYTORCH := 1
-export LD_LIBRARY_PATH := $LIBTORCH:${LD_LIBRARY_PATH
+export LIBTORCH := ```
+        uv run python -c "from vedelo import *; print(PYTORCH)"
+    ``` + "/lib"
+export DEP_TCH_LIBTORCH_LIB := LIBTORCH
+export LIBTORCH_USE_PYTORCH := "1"
+export LD_LIBRARY_PATH := LIBTORCH
 
 build: venv
+    @echo $LD_LIBRARY_PATH
+    source .venv/bin/activate
     cargo build --release
-    ln -s target/release/vedelo vedelo
+    ln -sf target/release/vedelo vedelo-cli
 
 build-dev: venv
     cargo build
 
 run: build
-    python -c "from vedelo import *; get_model('finetuned.zip')"
-    vedelo \
-        -m finetuned/Vedelo-V1S.torchscript \
+    uv run python -c "from vedelo import *; get_model('finetuned.zip')"
+    vedelo-cli \
+        -m exported/vedelo-v1s.torchscript \
         -s dataset/test/video_test.mp4 \
         -d static/video_track.mp4 \
         --conf 0.5 \
@@ -43,5 +46,17 @@ run: build
 clean:
     cargo clean
 
-rebuild: clean build
-rebuild-dev: clean build-dev
+train:
+    uv run python -m vedelo.train
+
+test:
+    uv run python -m vedelo.test
+
+download-finetuned:
+    uv run python -c "from vedelo import *; download_torchscript('finetuned')"
+
+download-dataset:
+    uv run python -c "from vedelo import *; download_dataset('dataset')"
+
+clean-build: clean build
+clean-build-dev: clean build-dev

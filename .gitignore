@@ -9,16 +9,14 @@ wheels/
 # Virtual environments
 .venv
 
-# Added by cargo
+# Crate build artifacts
 target/
+vedelo-cli
 
 # Dataset directory
 dataset/
 
-# Artifacts
+# Training artifacts
 artifacts/
-finetuned/
+exported/
 yolo*.pt
-
-# Release archives
-release/

@@ -4,7 +4,7 @@ from pathlib import Path
 
 from ultralytics import YOLO
 
-from vedelo import ROOT, device_available, get_dataset
+from vedelo import ROOT, device_available, download_dataset
 
 
 DATA = "dataset/data.yaml"
@@ -20,7 +20,7 @@ ARGS = dict(
     device=DEVICE,
     workers=0,
     project=ROOT / "artifacts",
-    name="Vedelo-V1S",
+    name="vedelo-v1s",
     exist_ok=True,
     rect=True,
     cos_lr=True,
@@ -31,7 +31,7 @@ ARGS = dict(
 
 if __name__ == "__main__":
     if not Path("dataset").exists():
-        get_dataset(Path("dataset.zip"))
+        download_dataset(Path("dataset"))
     data_path: Path = ROOT / "dataset"
     data = f"""path: {data_path}
 
@@ -45,7 +45,7 @@ names:
     with open(DATA, "w") as f:
         f.write(data)
 
-    model = YOLO("artifacts/pretrained/yolo26s.pt")
+    model = YOLO("artifacts/base/yolo26s.pt")
     warnings.simplefilter("ignore")
     getattr(model, MODE)(**ARGS)
     os.remove("yolo26n.pt")

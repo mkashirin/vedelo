@@ -1,14 +1,18 @@
+import shutil
 import os
 import urllib.request
 import zipfile
 from pathlib import Path
 
+from huggingface_hub import hf_hub_download, snapshot_download
 import torch as pt
 
 
-_BASE_URL = "https://storage.yandexcloud.net/lab-storage"
-MODEL_URL = f"{_BASE_URL}/vedelo-v1s.zip"
-DATASET_URL = f"{_BASE_URL}/vedelo2.zip"
+# _BASE_URL = "https://storage.yandexcloud.net/lab-storage"
+# MODEL_URL = f"{_BASE_URL}/vedelo-v1s.zip"
+# DATASET_URL = f"{_BASE_URL}/vedelo2.zip"
+DATASET_REPO_ID = "mkashirin/vedelo-dataset-v1"
+MODEL_REPO_ID = "mkashirin/vedelo-v1s"
 
 
 def device_available() -> str:
@@ -22,54 +26,16 @@ def device_available() -> str:
     return using
 
 
-def get_model(output_path: Path) -> None:
-    _get_unpacked(MODEL_URL, output_path)
+def download_torchscript(output_path: Path) -> None:
+    if not output_path.exists():
+        os.mkdir("finetuned")
+        hf_hub_download(
+            MODEL_REPO_ID, "vedelo-v1s.torchscript", local_dir=output_path
+        )
 
 
-def get_dataset(output_path: Path) -> None:
-    _get_unpacked(DATASET_URL, output_path)
-
-
-def _get_unpacked(
-    url: str, output_path: Path, remove_zip: bool = True
-) -> None:
-    print(f"Downloading {url}...")
-    try:
-        with urllib.request.urlopen(url) as response:
-            if response.status != 200:
-                raise RuntimeError(
-                    f"Download failed with status {response.status}"
-                )
-            output_path.write_bytes(response.read())
-    except Exception as e:
-        raise RuntimeError(f"Error downloading file: {e}")
-    print(f"Saved to {output_path}")
-
-    extract_to = output_path.parent
-    print(f"Extracting {output_path} to {extract_to}...")
-    try:
-        with zipfile.ZipFile(output_path, "r") as zip_ref:
-            zip_ref.extractall(extract_to)
-    except zipfile.BadZipFile:
-        raise RuntimeError("Downloaded file is not a valid ZIP archive")
-    print("Extraction complete.")
-
-    if remove_zip:
-        os.remove(output_path)
-
-
-def create_zip(zip_name: str, *paths):
-    with zipfile.ZipFile(
-        zip_name, "w", compression=zipfile.ZIP_DEFLATED
-    ) as zip_ref:
-        for path in paths:
-            path = Path(path)
-
-            if path.is_file():
-                zip_ref.write(path, arcname=path.name)
-            elif path.is_dir():
-                for file in path.rglob("*"):
-                    if file.is_file():
-                        zip_ref.write(
-                            file, arcname=file.relative_to(path.parent)
-                        )
+def download_dataset(output_path: Path) -> None:
+    if not output_path.exists():
+        snapshot_download(
+            DATASET_REPO_ID, repo_type="dataset", local_dir=output_path
+        )

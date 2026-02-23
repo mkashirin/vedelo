@@ -8,33 +8,36 @@ from ultralytics import YOLO
 from vedelo import ROOT
 
 
-VAL_PATH = Path("dataset/images+labels/images/val")
-SOURCE = "dataset/video_test.mp4"
+VAL_PATH = Path("dataset/images/val")
+SOURCE = "dataset/test/video_test.mp4"
 TRACKER = "botsort.yaml"
 MODE = "track"
 ARGS = dict(
     source=SOURCE,
     stream=True,
     imgsz=1280,
-    conf=0.05,
-    iou=0.5,
+    conf=0.5,
+    iou=0.2,
     save=True,
     tracker=TRACKER,
     project=ROOT / "artifacts",
-    name="Vedelo-V1S_track",
+    name="vedelo-v1s_track",
 )
 
 if __name__ == "__main__":
-    model = YOLO("artifacts/Vedelo-V1S/weights/best.pt")
+    model = YOLO("artifacts/vedelo-v1s/weights/best.pt")
 
-    print(model.model.names)
-    print(model.model.nc)
+    print(getattr(model.model, "names"))
+    print(getattr(model.model, "nc"))
     print("Testing one val image detection")
     val_dir: List[str] = os.listdir(VAL_PATH)
     model.predict(
         VAL_PATH / val_dir[random.randint(0, len(val_dir))],
-        conf=0.05,
-        save=False,
+        conf=0.5,
+        iou=0.2,
+        save=True,
+        project=ROOT / "artifacts",
+        name="vedelo-v1s_predict",
     )
 
     results = getattr(model, MODE)(**ARGS)
