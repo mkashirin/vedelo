@@ -28,11 +28,8 @@ impl KalmanFilter {
         state[3] = ratio;
 
         let mut covariance = StateMat::identity();
-        for i in 0..4 {
-            covariance[(i, i)] = 10.0;
-        }
-        for i in 4..7 {
-            covariance[(i, i)] = 1000.0;
+        for i in 0..7 {
+            covariance[(i, i)] = if i < 4 { 10.0 } else { 1000.0 };
         }
 
         Self { state, covariance }
@@ -45,11 +42,8 @@ impl KalmanFilter {
         f[(2, 6)] = 1.0;
 
         let mut q = StateMat::identity();
-        for i in 0..4 {
-            q[(i, i)] *= 1.0;
-        }
-        for i in 4..7 {
-            q[(i, i)] *= 0.01;
+        for i in 0..7 {
+            q[(i, i)] *= if i < 4 { 1.0 } else { 0.01 };
         }
 
         self.state = f * self.state;
@@ -72,11 +66,8 @@ impl KalmanFilter {
         }
 
         let mut r = SMatrix::<f32, 4, 4>::identity();
-        for i in 0..2 {
-            r[(i, i)] = 1.0;
-        }
-        for i in 2..4 {
-            r[(i, i)] = 10.0;
+        for i in 0..4 {
+            r[(i, i)] = if i < 2 { 1.0 } else { 10.0 };
         }
 
         // Standard Kalman Equations:

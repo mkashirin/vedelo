@@ -59,7 +59,7 @@ impl SortTracker {
                 }
             }
 
-            // Call minimize with the flattened slice
+            // Call minimize with the flattened slice.
             let assignment =
                 hungarian::minimize(&cost_matrix, num_tracks, num_dets);
 
@@ -86,7 +86,7 @@ impl SortTracker {
                 }
             }
         } else {
-            // If `tracks` is 0, all dets are unmatched. If `dets` is 0, all tracks are unmatched.
+            // If `tracks` is 0, all `dets` are unmatched, and the other way around.
         }
 
         for (t_ind, d_ind) in matched_pairs {
