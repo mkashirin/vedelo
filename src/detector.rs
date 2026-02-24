@@ -30,10 +30,7 @@ pub struct YoloDetector {
 
 impl YoloDetector {
     pub fn new(model_path: &str, input_size: i32) -> Result<Self> {
-        let device = if tch::utils::has_mps() {
-            println!("Detector running on MPS");
-            Device::Mps
-        } else if tch::Cuda::is_available() {
+        let device = if tch::Cuda::is_available() {
             println!("Detector running on CUDA");
             Device::Cuda(0)
         } else {

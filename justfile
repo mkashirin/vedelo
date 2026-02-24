@@ -1,9 +1,6 @@
 set shell := ["bash", "-cu"]
 
-_os_family := if os_family() != "unix" {
-    error("Windows build is not supported")
-} else { "" }
-_os := if os() != "linux" { error("Builds on linux only") } else { "" }
+_os := if os() != "linux" { error("Builds on Linux only") } else { "" }
 
 default: build
 
@@ -34,11 +31,10 @@ build-dev: venv
     cargo build
 
 run: build
-    uv run python -c "from vedelo import *; get_model('finetuned.zip')"
-    vedelo-cli \
-        -m exported/vedelo-v1s.torchscript \
+    ./vedelo-cli \
+        -m exported/vedelo-v1s-epoch20-cuda.torchscript \
         -s dataset/test/video_test.mp4 \
-        -d static/video_track.mp4 \
+        -d static/video_track_exp.mp4 \
         --conf 0.5 \
         --iou-thresh 0.2 \
         --max-age 90
@@ -51,6 +47,9 @@ train:
 
 test:
     uv run python -m vedelo.test
+
+export:
+    uv run python -m vedelo.export
 
 download-finetuned:
     uv run python -c "from vedelo import *; download_torchscript('finetuned')"
