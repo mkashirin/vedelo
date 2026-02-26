@@ -8,8 +8,7 @@ use std::collections::HashSet;
 use std::path::Path;
 
 use ab_glyph::FontRef;
-// Ensure you have kornia 0.1.4+ (or compatible version)
-use kornia::image::{Image, ImageSize, allocator::CpuAllocator};
+use kornia_image::{Image, ImageSize};
 use ndarray::Array3;
 use video_rs::{self, Decoder, Encoder, encode::Settings};
 
@@ -84,14 +83,13 @@ fn main() -> Result<()> {
                 height: h,
             },
             raw_buffer,
-            CpuAllocator,
         )?;
 
         // 2. Logic (Detect / Track / Draw)
         let detections = detector.detect(&image, args.conf)?;
         let active_tracks = tracker.update(detections);
 
-        for track in active_tracks {
+        for track in &active_tracks {
             unique_ids.insert(track.id);
 
             // Generate color based on ID
@@ -106,17 +104,17 @@ fn main() -> Result<()> {
             draw_rect(&mut image, track.last_rect, color);
 
             // Draw Label
-            let label = format!("ID:{}", track.id);
-            let label_rect =
-                Rect::new(track.last_rect.x, track.last_rect.y - 22, 60, 22);
-            draw_filled_rect(&mut image, label_rect, color);
+            let annotation = format!("ID:{} C:{}", track.id, track.class_id);
+            let ann_rect =
+                Rect::new(track.last_rect.x, track.last_rect.y - 22, 80, 22);
+            draw_filled_rect(&mut image, ann_rect, color);
 
             draw_text(
                 &mut image,
                 &font,
-                &label,
+                &annotation,
                 track.last_rect.x + 2,
-                track.last_rect.y - 20,
+                track.last_rect.y - 40,
                 [255, 255, 255],
             );
         }
@@ -132,9 +130,18 @@ fn main() -> Result<()> {
         encoder.encode(&out_frame_array, time)?;
 
         frame_count += 1;
-        if frame_count % 30 == 0 {
-            println!("Processed Frames: {}", frame_count);
-        }
+        let formatted = active_tracks
+            .iter()
+            .map(|t| {
+                format!(
+                    "id={}: (age={}, tsu={}, hits={}, class={})",
+                    t.id, t.age, t.time_since_update, t.hits, t.class_id
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        println!("Tracks at frame {}: {}", frame_count, formatted);
     }
 
     encoder.finish()?;

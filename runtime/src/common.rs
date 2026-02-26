@@ -1,5 +1,5 @@
 use ab_glyph::{Font, FontRef, PxScale, ScaleFont};
-use kornia::image::{Image, allocator::ImageAllocator};
+use kornia_image::Image;
 
 /// Simple Rectangle struct
 #[derive(Debug, Clone, Copy)]
@@ -70,10 +70,7 @@ pub fn calculate_iou(a: Rect, b: Rect) -> f64 {
 // ─────────────────────────────────────────────
 //
 
-pub fn draw_rect<A>(image: &mut Image<u8, 3, A>, rect: Rect, color: [u8; 3])
-where
-    A: ImageAllocator,
-{
+pub fn draw_rect(image: &mut Image<u8, 3>, rect: Rect, color: [u8; 3]) {
     let width = image.width() as i32;
     let height = image.height() as i32;
     let data = image.storage.as_mut_slice();
@@ -111,13 +108,7 @@ where
 // ─────────────────────────────────────────────
 //
 
-pub fn draw_filled_rect<A>(
-    image: &mut Image<u8, 3, A>,
-    rect: Rect,
-    color: [u8; 3],
-) where
-    A: ImageAllocator,
-{
+pub fn draw_filled_rect(image: &mut Image<u8, 3>, rect: Rect, color: [u8; 3]) {
     let width = image.width() as i32;
     let height = image.height() as i32;
     let data = image.storage.as_mut_slice();
@@ -147,16 +138,14 @@ pub fn draw_filled_rect<A>(
 // ─────────────────────────────────────────────
 //
 
-pub fn draw_text<A>(
-    image: &mut Image<u8, 3, A>,
+pub fn draw_text(
+    image: &mut Image<u8, 3>,
     font: &FontRef,
     text: &str,
     x: i32,
     y: i32,
     color: [u8; 3],
-) where
-    A: ImageAllocator,
-{
+) {
     let width = image.width() as i32;
     let height = image.height() as i32;
     let data = image.storage.as_mut_slice();

@@ -15,7 +15,7 @@ runtime/third-party/*install/
 vedelo-rt
 
 # Training stage and artifacts
-training-stage/*
-training-stage/!.gitkeep
+training-stage/artifacts
+training-stage/dataset
 runtime/models/
 yolo*.pt

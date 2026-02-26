@@ -8,7 +8,8 @@ ab_glyph = "0.2.32"
 anyhow = "1.0.102"
 clap = { version = "4.5.60", features = ["derive"] }
 hungarian = "1.1.1"
-kornia = "0.1.9"
+kornia-image = { git = "https://github.com/kornia/kornia-rs", tag = "v0.1.9" }
+kornia-imgproc = { git = "https://github.com/kornia/kornia-rs", tag = "v0.1.9" }
 nalgebra = "0.34.1"
 ndarray = "0.17.2"
 tch = "0.23.0"

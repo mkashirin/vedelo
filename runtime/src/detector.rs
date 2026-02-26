@@ -1,14 +1,11 @@
 use anyhow::Result;
-use kornia::image::allocator::{CpuAllocator, ImageAllocator};
-use kornia::image::{Image, ImageSize};
-use kornia::imgproc::{
-    interpolation::InterpolationMode, resize::resize_fast_rgb,
-};
+use kornia_image::{Image, ImageSize};
+use kornia_imgproc::{interpolation::InterpolationMode, resize::resize_fast};
 use tch::{Device, Kind, Tensor};
 
 use crate::common::Rect;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct Detection {
     pub rect: Rect,
     #[allow(dead_code)]
@@ -50,14 +47,11 @@ impl YoloDetector {
         })
     }
 
-    pub fn detect<A>(
+    pub fn detect(
         &self,
-        image: &Image<u8, 3, A>,
+        image: &Image<u8, 3>,
         conf_threshold: f64,
-    ) -> Result<Vec<Detection>>
-    where
-        A: ImageAllocator,
-    {
+    ) -> Result<Vec<Detection>> {
         let (input_tensor, pad_info) = self.preprocess(image)?;
 
         let output = self.model.forward_ts(&[&input_tensor])?;
@@ -120,13 +114,7 @@ impl YoloDetector {
         Ok(results)
     }
 
-    fn preprocess<A>(
-        &self,
-        image: &Image<u8, 3, A>,
-    ) -> Result<(Tensor, PadInfo)>
-    where
-        A: ImageAllocator,
-    {
+    fn preprocess(&self, image: &Image<u8, 3>) -> Result<(Tensor, PadInfo)> {
         let size = image.size();
         let target = self.input_size;
 
@@ -137,16 +125,15 @@ impl YoloDetector {
         let new_h = (size.height as f64 * ratio).round() as usize;
 
         // Resize
-        let mut resized = Image::<u8, 3, _>::from_size_val(
+        let mut resized = Image::<u8, 3>::from_size_val(
             ImageSize {
                 width: new_w,
                 height: new_h,
             },
             0,
-            CpuAllocator,
         )?;
 
-        resize_fast_rgb(image, &mut resized, InterpolationMode::Nearest)?;
+        resize_fast(image, &mut resized, InterpolationMode::Nearest)?;
 
         // Create padded buffer
         let mut padded = vec![114u8; target * target * 3];
