@@ -134,7 +134,7 @@ fn main() -> Result<()> {
             .iter()
             .map(|t| {
                 format!(
-                    "id={}: (age={}, tsu={}, hits={}, class={})",
+                    "(id={}, age={}, tsu={}, hits={}, class={})",
                     t.id, t.age, t.time_since_update, t.hits, t.class_id
                 )
             })
