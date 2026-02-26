@@ -1,3 +1,4 @@
+from typing import Literal
 import shutil
 import os
 import urllib.request
@@ -8,34 +9,40 @@ from huggingface_hub import hf_hub_download, snapshot_download
 import torch as pt
 
 
-# _BASE_URL = "https://storage.yandexcloud.net/lab-storage"
-# MODEL_URL = f"{_BASE_URL}/vedelo-v1s.zip"
-# DATASET_URL = f"{_BASE_URL}/vedelo2.zip"
 DATASET_REPO_ID = "mkashirin/vedelo-dataset-v1"
-MODEL_REPO_ID = "mkashirin/vedelo-v1s"
+MODEL_REPO_ID = "mkashirin/vedelo-v1"
 
 
-def device_available() -> str:
+def torch_device_available() -> str:
     using: str
     if pt.cuda.is_available():
         using = "cuda"
-    elif pt.mps.is_available():
-        using = "mps"
     else:
         using = "cpu"
     return using
 
 
-def download_torchscript(output_path: Path) -> None:
-    if not output_path.exists():
+def hf_hub_download_model_v1(
+    size: Literal["s", "m"] = "s",
+    checkpoint: Literal["epoch20", "epoch40", "epoch60", "best"] = "epoch40",
+    format: Literal["pt", "torchscript", "onnx"] = "torchscript",
+    subfolder: Literal[
+        "n-batch8", "n-batch12", "s-batch8", "s-batch12"
+    ] = "s-batch8",
+    local_dir: Path = Path("models"),
+) -> None:
+    filename = f"vedelo-v1{size}-{checkpoint}-cuda.{format}"
+    if not local_dir.exists():
         os.mkdir("finetuned")
         hf_hub_download(
-            MODEL_REPO_ID, "vedelo-v1s.torchscript", local_dir=output_path
+            MODEL_REPO_ID, filename, subfolder=subfolder, local_dir=local_dir
         )
 
 
-def download_dataset(output_path: Path) -> None:
-    if not output_path.exists():
+def snapshot_download_dataset_v1(
+    local_dir: Path = Path("training-stage/dataset")
+) -> None:
+    if not local_dir.exists():
         snapshot_download(
-            DATASET_REPO_ID, repo_type="dataset", local_dir=output_path
+            DATASET_REPO_ID, repo_type="dataset", local_dir=local_dir
         )

@@ -6,17 +6,16 @@ dist/
 wheels/
 *.egg-info
 
-# Virtual environments
-.venv
+# Build environment
+.venv/
 
-# Crate build artifacts
-target/
-vedelo-cli
+# Runtime build artifacts and third-arty libraries
+runtime/target/
+runtime/third-party/*install/
+vedelo-rt
 
-# Dataset directory
-dataset/
-
-# Training artifacts
-artifacts/
-exported/
+# Training stage and artifacts
+training-stage/*
+training-stage/!.gitkeep
+runtime/models/
 yolo*.pt

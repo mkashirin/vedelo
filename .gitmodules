@@ -1,0 +1,10 @@
+[submodule "runtime/third-party/FFmpeg-n6.1.1"]
+	path = runtime/third-party/FFmpeg-n6.1.1
+	url = https://github.com/FFmpeg/FFmpeg
+[submodule "runtime/third-party/x264-stable"]
+	path = runtime/third-party/x264-stable
+	url = https://github.com/mirror/x264
+	branch = stable
+[submodule "runtime/third-party/nv-codec-headers-n12.0.16.1"]
+	path = runtime/third-party/nv-codec-headers-n12.0.16.1
+	url = https://github.com/FFmpeg/nv-codec-headers

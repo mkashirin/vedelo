@@ -4,12 +4,12 @@ from pathlib import Path
 
 from ultralytics import YOLO
 
-from vedelo.common import device_available
+from vedelo.common import torch_device_available
 
 
 MODEL = "vedelo-v1s"
 CHECKPOINT = "epoch20"
-DEVICE = device_available()
+DEVICE = torch_device_available()
 EXPORT_FORMATS = ("torchscript", "onnx")
 
 if __name__ == "__main__":
