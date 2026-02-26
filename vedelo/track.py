@@ -8,8 +8,9 @@ from ultralytics import YOLO
 from vedelo import ROOT
 
 
-VAL_PATH = Path("dataset/images/val")
-SOURCE = "dataset/test/video_test.mp4"
+NAME = "v1s_batch12_imgsz1280"
+VAL_PATH = Path("training-stage/dataset/images/val")
+SOURCE = "training-stage/dataset/test/video_test.mp4"
 TRACKER = "botsort.yaml"
 MODE = "track"
 ARGS = dict(
@@ -25,7 +26,7 @@ ARGS = dict(
 )
 
 if __name__ == "__main__":
-    model = YOLO("artifacts/vedelo-v1s/weights/best.pt")
+    model = YOLO("artifacts/{NAME}/weights/best.pt")
 
     print(getattr(model.model, "names"))
     print(getattr(model.model, "nc"))
@@ -37,7 +38,7 @@ if __name__ == "__main__":
         iou=0.2,
         save=True,
         project=ROOT / "artifacts",
-        name="vedelo-v1s_predict",
+        name=f"{NAME}_predict",
     )
 
     results = getattr(model, MODE)(**ARGS)

@@ -7,7 +7,7 @@ from ultralytics import YOLO
 from vedelo import ROOT, torch_device_available, snapshot_download_dataset_v1
 
 
-DATA = "dataset/data.yaml"
+DATA = "training-stage/dataset/data.yaml"
 DEVICE: str = torch_device_available()
 MODE = "train"
 ARGS = dict(
@@ -20,7 +20,7 @@ ARGS = dict(
     device=DEVICE,
     workers=0,
     project=ROOT / "artifacts",
-    name="vedelo-v1s_batch8_imgsz1280",
+    name="v1s_batch8_imgsz1280",
     exist_ok=True,
     rect=True,
     cos_lr=True,
@@ -30,7 +30,7 @@ ARGS = dict(
 
 
 if __name__ == "__main__":
-    dataset_path = Path("dataset")
+    dataset_path = Path("training-stage/dataset")
     if not dataset_path.exists():
         snapshot_download_dataset_v1(dataset_path)
     data_path: Path = ROOT / "dataset"

@@ -44,7 +44,8 @@ fn main() -> Result<()> {
     let mut tracker = SortTracker::new(args.max_age, args.iou_thresh);
 
     // --- Init Assets ---
-    let font_data = include_bytes!("../third-party/fonts/Roboto-Regular.ttf");
+    let font_data =
+        include_bytes!("../third-party/fonts/roboto-mono-stripped.ttf");
     let font = FontRef::try_from_slice(font_data)?;
 
     // --- Init Decoder ---
