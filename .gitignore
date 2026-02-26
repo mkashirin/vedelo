@@ -1,15 +1,10 @@
 # Python-generated files
 __pycache__/
-*.py[oc]
-build/
-dist/
-wheels/
-*.egg-info
 
 # Build environment
 .venv/
 
-# Runtime build artifacts and third-arty libraries
+# Runtime build artifacts and third-party libraries
 runtime/target/
 runtime/third-party/*install/
 vedelo-rt
@@ -17,5 +12,5 @@ vedelo-rt
 # Training stage and artifacts
 training-stage/artifacts
 training-stage/dataset
-runtime/models/
+models/
 yolo*.pt

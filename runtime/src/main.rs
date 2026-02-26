@@ -104,9 +104,9 @@ fn main() -> Result<()> {
             draw_rect(&mut image, track.last_rect, color);
 
             // Draw Label
-            let annotation = format!("ID:{} C:{}", track.id, track.class_id);
+            let annotation = format!("ID:{}, C:{}", track.id, track.class_id);
             let ann_rect =
-                Rect::new(track.last_rect.x, track.last_rect.y - 22, 80, 22);
+                Rect::new(track.last_rect.x, track.last_rect.y - 20, 70, 20);
             draw_filled_rect(&mut image, ann_rect, color);
 
             draw_text(
@@ -114,7 +114,7 @@ fn main() -> Result<()> {
                 &font,
                 &annotation,
                 track.last_rect.x + 2,
-                track.last_rect.y - 40,
+                track.last_rect.y - 2,
                 [255, 255, 255],
             );
         }

@@ -31,7 +31,7 @@ def hf_hub_download_model_v1(
     ] = "s-batch8",
     local_dir: Path = Path("models"),
 ) -> None:
-    filename = f"vedelo-v1{size}-{checkpoint}-cuda.{format}"
+    filename = f"v1{size}_{checkpoint}_cuda.{format}"
     if not local_dir.exists():
         os.mkdir("finetuned")
         hf_hub_download(

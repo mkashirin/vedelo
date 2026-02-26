@@ -93,11 +93,11 @@ build-dev: venv
 [group("runtime")]
 run:
     ./vedelo-rt \
-        -m training-stage/artifacts/exported/vedelo-v1s-epoch40-cuda.torchscript \
+        -m training-stage/artifacts/exported/vedelo-v1s-best-cuda.torchscript \
         -s training-stage/dataset/test/video_test.mp4 \
         -d showcase/video_track_exp.mp4 \
-        --conf 0.5 \
-        --iou-thresh 0.2 \
+        --conf 0.4 \
+        --iou-thresh 0.1 \
         --max-age 90
 
 [group("runtime")]
