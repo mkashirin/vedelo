@@ -88,7 +88,7 @@ build: venv
 [group("runtime")]
 build-dev: venv
     source .venv/bin/activate
-    cargo build
+    cd runtime && cargo build
 
 [group("runtime")]
 run:
