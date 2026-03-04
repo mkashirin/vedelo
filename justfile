@@ -4,7 +4,6 @@ _os := if os() != "linux" { error("Builds on Linux only") } else { "" }
 
 default: build
 
-# export UV_PROJECT_ENVIRONMENT := invocation_directory() + "/.vedelo-env"
 export FFMPEG_INSTALL_DIR := (
     invocation_directory() + "/runtime/third-party/install"
 )
@@ -20,9 +19,9 @@ export LD_LIBRARY_PATH := LIBTORCH + "/lib"
 [group("vedelo")]
 venv:
     #!/usr/bin/env sh
-    if [ ! -d .venv ]; then
+    if [ ! -d .vedelo-pyenv ]; then
         echo "Creating virtual environment..."
-        uv venv .venv && uv sync --all-groups
+        uv venv .vedelo-pyenv --prompt vedelo && uv sync --all-groups
     fi
 
 [group("vedelo")]
