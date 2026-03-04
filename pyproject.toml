@@ -34,7 +34,7 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build]
 packages = ["vedelo"]
-include = ["static"]
+include = ["showcase"]
 
 [tool.ty.rules]
 no-matching-overload = "ignore"

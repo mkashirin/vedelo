@@ -4,22 +4,11 @@ _os := if os() != "linux" { error("Builds on Linux only") } else { "" }
 
 default: build
 
-[group("vedelo")]
-venv:
-    #!/usr/bin/env sh
-    if [ ! -d .venv ]; then
-        echo "Creating virtual environment..."
-        uv venv && uv sync
-    fi
-
-[group("vedelo")]
-sync:
-    uv sync
-
-export FFMPEG_INSTALL_DIR := (
-    invocation_directory() + "/runtime/third-party/FFmpeg-n6.1.1-install"
+# export UV_PROJECT_ENVIRONMENT := invocation_directory() + "/.vedelo-env"
+export THIRD_PARTY_INSTALL_DIR := (
+    invocation_directory() + "/runtime/third-party/install"
 )
-export DEP_FFMPEG_LIB := FFMPEG_INSTALL_DIR + "/lib"
+export DEP_FFMPEG_LIB := THIRD_PARTY_INSTALL_DIR + "/lib"
 export LIBTORCH := ```
         uv run python -c "from vedelo import *; print(PYTORCH)"
     ```
@@ -28,27 +17,39 @@ export LD_LIBRARY_PATH := LIBTORCH + "/lib"
 export PKG_CONFIG_PATH := DEP_FFMPEG_LIB + "/pkgconfig"
 export PKG_CONFIG_LIBDIR := PKG_CONFIG_PATH
 
+[group("vedelo")]
+venv:
+    #!/usr/bin/env sh
+    if [ ! -d .venv ]; then
+        echo "Creating virtual environment..."
+        uv venv .venv && uv sync --all-groups
+    fi
+
+[group("vedelo")]
+sync:
+    uv sync --all-groups
+
 [group("runtime")]
 build-deps:
     git submodule update --init --recursive
-    mkdir -p "$FFMPEG_INSTALL_DIR"
+    mkdir -p "$THIRD_PARTY_INSTALL_DIR"
 
-    cd runtime/third-party/nv-codec-headers-n12.0.16.1 && \
-    make PREFIX="$FFMPEG_INSTALL_DIR" install
+    cd runtime/third-party/nv-codec-headers && \
+    make PREFIX="$THIRD_PARTY_INSTALL_DIR" install
 
-    cd runtime/third-party/x264-stable && make distclean && \
+    cd runtime/third-party/x264 && make distclean && \
     ./configure \
-        --prefix="$FFMPEG_INSTALL_DIR" \
+        --prefix="$THIRD_PARTY_INSTALL_DIR" \
         --enable-static \
         --enable-pic \
         --disable-cli && \
     make -j$(nproc) && make install
 
-    cd runtime/third-party/FFmpeg-n6.1.1 && make distclean && \
+    cd runtime/third-party/FFmpeg && make distclean && \
     ./configure \
-        --prefix="$FFMPEG_INSTALL_DIR" \
-        --extra-cflags="-I$FFMPEG_INSTALL_DIR/include" \
-        --extra-ldflags="-I$FFMPEG_INSTALL_DIR/lib" \
+        --prefix="$THIRD_PARTY_INSTALL_DIR" \
+        --extra-cflags="-I$THIRD_PARTY_INSTALL_DIR/include" \
+        --extra-ldflags="-I$THIRD_PARTY_INSTALL_DIR/lib" \
         \
         --disable-shared \
         --enable-static \
@@ -91,11 +92,21 @@ build-dev: venv
     cd runtime && cargo build
 
 [group("runtime")]
-run:
+run-v1n:
     ./vedelo-rt \
-        -m training-stage/artifacts/exported/vedelo-v1s-best-cuda.torchscript \
+        -m training-stage/artifacts/exported/v1n_best_cuda.torchscript \
         -s training-stage/dataset/test/video_test.mp4 \
-        -d showcase/video_track_exp.mp4 \
+        -d showcase/video_track_by_v1n.mp4 \
+        --conf 0.6 \
+        --iou-thresh 0.1 \
+        --max-age 90
+
+[group("runtime")]
+run-v1s:
+    ./vedelo-rt \
+        -m training-stage/artifacts/exported/v1s_best_cuda.torchscript \
+        -s training-stage/dataset/test/video_test.mp4 \
+        -d showcase/video_track_by_v1s.mp4 \
         --conf 0.4 \
         --iou-thresh 0.1 \
         --max-age 90

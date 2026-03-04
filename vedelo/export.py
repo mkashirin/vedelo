@@ -7,19 +7,22 @@ from ultralytics import YOLO
 from vedelo.common import torch_device_available
 
 
-NAME = "v1s"
-CHECKPOINT = "epoch20"
+ROOT_DIR = "training-stage/artifacts"
+PROJECT = f"{ROOT_DIR}/v1n_batch8_imgsz1280"
+EXPORT_PATH = f"{ROOT_DIR}/exported"
+NAME = "v1n"
+CHECKPOINT = "best"
 DEVICE = torch_device_available()
 EXPORT_FORMATS = ("torchscript", "onnx")
 
 if __name__ == "__main__":
-    model = YOLO(f"artifacts/{NAME}/weights/{CHECKPOINT}.pt")
+    model = YOLO(f"{PROJECT}/weights/{CHECKPOINT}.pt")
     export_name = f"{NAME}_{CHECKPOINT}_{DEVICE}"
     for format in EXPORT_FORMATS:
-        if not Path(f"exported/{export_name}.{format}").exists():
+        if not Path(f"{EXPORT_PATH}/{export_name}.{format}").exists():
             model.export(format=format, half=True, dynamic=True, device=DEVICE)
 
-    weights_dir = Path(f"artifacts/{NAME}/weights")
+    weights_dir = Path(f"{PROJECT}/weights")
     if weights_dir.exists():
         export_files = []
         for filename in os.listdir(weights_dir):
@@ -32,4 +35,4 @@ if __name__ == "__main__":
             shutil.copy(src, dest)
 
         for _, src in export_files:
-            shutil.move(src, f"exported/{src.split('/')[-1]}")
+            shutil.move(src, f"{EXPORT_PATH}/{src.split('/')[-1]}")
