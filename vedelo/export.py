@@ -8,9 +8,9 @@ from vedelo.common import torch_device_available
 
 
 ROOT_DIR = "training-stage/artifacts"
-PROJECT = f"{ROOT_DIR}/v1n_batch8_imgsz1280"
+NAME = "v1s_batch12_imgsz1280"
+PROJECT = f"{ROOT_DIR}/{NAME}"
 EXPORT_PATH = f"{ROOT_DIR}/exported"
-NAME = "v1n"
 CHECKPOINT = "best"
 DEVICE = torch_device_available()
 EXPORT_FORMATS = ("torchscript", "onnx")

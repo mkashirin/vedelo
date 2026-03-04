@@ -5,17 +5,17 @@ _os := if os() != "linux" { error("Builds on Linux only") } else { "" }
 default: build
 
 # export UV_PROJECT_ENVIRONMENT := invocation_directory() + "/.vedelo-env"
-export THIRD_PARTY_INSTALL_DIR := (
+export FFMPEG_INSTALL_DIR := (
     invocation_directory() + "/runtime/third-party/install"
 )
-export DEP_FFMPEG_LIB := THIRD_PARTY_INSTALL_DIR + "/lib"
+export DEP_FFMPEG_LIB := FFMPEG_INSTALL_DIR+ "/lib"
 export LIBTORCH := ```
         uv run python -c "from vedelo import *; print(PYTORCH)"
     ```
-export DEP_TCH_LIBTORCH_LIB := LIBTORCH + "/lib"
-export LD_LIBRARY_PATH := LIBTORCH + "/lib" 
 export PKG_CONFIG_PATH := DEP_FFMPEG_LIB + "/pkgconfig"
 export PKG_CONFIG_LIBDIR := PKG_CONFIG_PATH
+export DEP_TCH_LIBTORCH_LIB := LIBTORCH + "/lib"
+export LD_LIBRARY_PATH := LIBTORCH + "/lib" 
 
 [group("vedelo")]
 venv:
@@ -32,24 +32,27 @@ sync:
 [group("runtime")]
 build-deps:
     git submodule update --init --recursive
-    mkdir -p "$THIRD_PARTY_INSTALL_DIR"
+    @echo "$FFMPEG_INSTALL_DIR"
+    @echo "$PKG_CONFIG_LIBDIR"
+    pkg-config --list-all
+    mkdir -p "$FFMPEG_INSTALL_DIR"
 
     cd runtime/third-party/nv-codec-headers && \
-    make PREFIX="$THIRD_PARTY_INSTALL_DIR" install
+    make PREFIX="$FFMPEG_INSTALL_DIR" install
 
-    cd runtime/third-party/x264 && make distclean && \
+    cd runtime/third-party/x264 && \
     ./configure \
-        --prefix="$THIRD_PARTY_INSTALL_DIR" \
+        --prefix="$FFMPEG_INSTALL_DIR" \
         --enable-static \
         --enable-pic \
         --disable-cli && \
     make -j$(nproc) && make install
 
-    cd runtime/third-party/FFmpeg && make distclean && \
+    cd runtime/third-party/FFmpeg && \
     ./configure \
-        --prefix="$THIRD_PARTY_INSTALL_DIR" \
-        --extra-cflags="-I$THIRD_PARTY_INSTALL_DIR/include" \
-        --extra-ldflags="-I$THIRD_PARTY_INSTALL_DIR/lib" \
+        --prefix="$FFMPEG_INSTALL_DIR" \
+        --extra-cflags="-I$FFMPEG_INSTALL_DIR/include" \
+        --extra-ldflags="-I$FFMPEG_INSTALL_DIR/lib" \
         \
         --disable-shared \
         --enable-static \
@@ -94,9 +97,9 @@ build-dev: venv
 [group("runtime")]
 run-v1n:
     ./vedelo-rt \
-        -m training-stage/artifacts/exported/v1n_best_cuda.torchscript \
+        -m training-stage/artifacts/exported/v1n_batch8_imgsz1280_best_cuda.torchscript \
         -s training-stage/dataset/test/video_test.mp4 \
-        -d showcase/video_track_by_v1n.mp4 \
+        -d assets/video_track_by_v1n_batch12_imgsz1280_best_cuda.mp4 \
         --conf 0.6 \
         --iou-thresh 0.1 \
         --max-age 90
@@ -104,10 +107,10 @@ run-v1n:
 [group("runtime")]
 run-v1s:
     ./vedelo-rt \
-        -m training-stage/artifacts/exported/v1s_best_cuda.torchscript \
+        -m training-stage/artifacts/exported/v1s_batch12_imgsz1280_best_cuda.torchscript \
         -s training-stage/dataset/test/video_test.mp4 \
-        -d showcase/video_track_by_v1s.mp4 \
-        --conf 0.4 \
+        -d assets/video_track_by_v1s_batch12_imgsz1280_best_cuda.mp4 \
+        --conf 0.7 \
         --iou-thresh 0.1 \
         --max-age 90
 
