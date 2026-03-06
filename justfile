@@ -19,9 +19,9 @@ export LD_LIBRARY_PATH := LIBTORCH + "/lib"
 [group("vedelo")]
 venv:
     #!/usr/bin/env sh
-    if [ ! -d .vedelo-pyenv ]; then
+    if [ ! -d .vedelo-env ]; then
         echo "Creating virtual environment..."
-        uv venv .vedelo-pyenv --prompt vedelo && uv sync --all-groups
+        uv venv .vedelo-env --prompt vedelo && uv sync --all-groups
     fi
 
 [group("vedelo")]
@@ -83,14 +83,14 @@ build-deps:
     
 
 [group("runtime")]
-build: venv
-    source .venv/bin/activate
+build:
+    source .vedelo-env/bin/activate
     cd runtime && cargo build --release && \
     ln -sf runtime/target/release/vedelo-rt vedelo-rt
 
 [group("runtime")]
-build-dev: venv
-    source .venv/bin/activate
+build-dev:
+    source .vedelo-env/bin/activate
     cd runtime && cargo build
 
 [group("runtime")]
@@ -98,7 +98,7 @@ run-v1n:
     ./vedelo-rt \
         -m training-stage/artifacts/exported/v1n_batch8_imgsz1280_best_cuda.torchscript \
         -s training-stage/dataset/test/video_test.mp4 \
-        -d assets/video_track_by_v1n_batch12_imgsz1280_best_cuda.mp4 \
+        -d assets/video_track_by_v1n_batch8_imgsz1280_best_cuda.mp4 \
         --conf 0.6 \
         --iou-thresh 0.1 \
         --max-age 90
@@ -106,9 +106,9 @@ run-v1n:
 [group("runtime")]
 run-v1s:
     ./vedelo-rt \
-        -m training-stage/artifacts/exported/v1s_batch12_imgsz1280_best_cuda.torchscript \
+        -m training-stage/artifacts/exported/v1s_batch8_imgsz1280_best_cuda.torchscript \
         -s training-stage/dataset/test/video_test.mp4 \
-        -d assets/video_track_by_v1s_batch12_imgsz1280_best_cuda.mp4 \
+        -d assets/video_track_by_v1s_batch8_imgsz1280_best_cuda.mp4 \
         --conf 0.7 \
         --iou-thresh 0.1 \
         --max-age 90

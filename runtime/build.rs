@@ -6,7 +6,7 @@ fn main() {
     }
     let third_party = std::path::Path::new("third-party");
     if !third_party.exists() {
-        panic!("Third-party deps missing! Run `just pull-deps`.");
+        panic!("Third-party deps missing! Run `just build-deps`.");
     }
 
     if let Some(libtorch_lib_path) = std::env::var_os("DEP_TCH_LIBTORCH_LIB") {

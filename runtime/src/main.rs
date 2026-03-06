@@ -105,9 +105,12 @@ fn main() -> Result<()> {
             draw_rect(&mut image, track.last_rect, color);
 
             // Draw Label
-            let annotation = format!("ID:{}, C:{}", track.id, track.class_id);
+            let annotation = format!(
+                "ID:{},C:{},S:{:.2}",
+                track.id, track.class_id, track.det_score
+            );
             let ann_rect =
-                Rect::new(track.last_rect.x, track.last_rect.y - 20, 70, 20);
+                Rect::new(track.last_rect.x, track.last_rect.y - 20, 140, 20);
             draw_filled_rect(&mut image, ann_rect, color);
 
             draw_text(
@@ -135,8 +138,13 @@ fn main() -> Result<()> {
             .iter()
             .map(|t| {
                 format!(
-                    "(id={}, age={}, tsu={}, hits={}, class={})",
-                    t.id, t.age, t.time_since_update, t.hits, t.class_id
+                    "(id={}, age={}, tsu={}, hits={}, class={}, score={})",
+                    t.id,
+                    t.age,
+                    t.time_since_update,
+                    t.hits,
+                    t.class_id,
+                    t.det_score,
                 )
             })
             .collect::<Vec<_>>()
@@ -146,7 +154,7 @@ fn main() -> Result<()> {
     }
 
     encoder.finish()?;
-    println!("Done! Total Unique IDs: {}", unique_ids.len());
+    println!("Done! Total unique IDs: {}", unique_ids.len());
 
     Ok(())
 }

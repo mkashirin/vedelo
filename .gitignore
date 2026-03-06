@@ -6,7 +6,7 @@ __pycache__/
 
 # Runtime build artifacts and third-party libraries
 runtime/target/
-runtime/third-party/*install/
+runtime/third-party/install/
 vedelo-rt
 
 # Training stage and artifacts

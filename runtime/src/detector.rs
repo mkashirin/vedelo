@@ -8,7 +8,6 @@ use crate::common::Rect;
 #[derive(Debug, Copy, Clone)]
 pub struct Detection {
     pub rect: Rect,
-    #[allow(dead_code)]
     pub score: f32,
     pub class_id: i32,
 }

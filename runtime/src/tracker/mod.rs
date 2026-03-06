@@ -13,6 +13,7 @@ pub struct Track {
     pub hits: i32,
     pub last_rect: Rect,
     pub class_id: i32,
+    pub det_score: f32,
 }
 
 pub struct SortTracker {
@@ -109,6 +110,7 @@ impl SortTracker {
                 hits: 1,
                 last_rect: det.rect,
                 class_id: det.class_id,
+                det_score: det.score,
             });
             self.next_id += 1;
         }
