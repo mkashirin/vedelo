@@ -2,7 +2,7 @@
 __pycache__/
 
 # Build environment
-.venv/
+.venv
 
 # Runtime build artifacts and third-party libraries
 runtime/target/

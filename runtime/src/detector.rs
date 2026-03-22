@@ -122,8 +122,6 @@ impl YoloDetector {
 
         let new_w = (size.width as f64 * ratio).round() as usize;
         let new_h = (size.height as f64 * ratio).round() as usize;
-
-        // Resize
         let mut resized = Image::<u8, 3>::from_size_val(
             ImageSize {
                 width: new_w,
@@ -131,18 +129,12 @@ impl YoloDetector {
             },
             0,
         )?;
-
         resize_fast(image, &mut resized, InterpolationMode::Nearest)?;
-
-        // Create padded buffer
         let mut padded = vec![114u8; target * target * 3];
 
         let dw = (target - new_w) / 2;
         let dh = (target - new_h) / 2;
-
         let resized_data = resized.storage.as_slice();
-
-        // Copy resized into padded buffer
         for y in 0..new_h {
             let dst_row = (y + dh) * target;
             let src_row = y * new_w;

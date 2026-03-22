@@ -1,7 +1,6 @@
 use ab_glyph::{Font, FontRef, PxScale, ScaleFont};
 use kornia_image::Image;
 
-/// Simple Rectangle struct
 #[derive(Debug, Clone, Copy)]
 pub struct Rect {
     pub x: i32,
@@ -64,12 +63,6 @@ pub fn calculate_iou(a: Rect, b: Rect) -> f64 {
     }
 }
 
-//
-// ─────────────────────────────────────────────
-// DRAW RECT (HOLLOW)
-// ─────────────────────────────────────────────
-//
-
 pub fn draw_rect(image: &mut Image<u8, 3>, rect: Rect, color: [u8; 3]) {
     let width = image.width() as i32;
     let height = image.height() as i32;
@@ -78,14 +71,13 @@ pub fn draw_rect(image: &mut Image<u8, 3>, rect: Rect, color: [u8; 3]) {
 
     let mut set_pixel = |x: i32, y: i32| {
         if x >= 0 && x < width && y >= 0 && y < height {
-            let idx = ((y as usize) * (width as usize) + (x as usize)) * 3;
-            data[idx] = color[0];
-            data[idx + 1] = color[1];
-            data[idx + 2] = color[2];
+            let ind = ((y as usize) * (width as usize) + (x as usize)) * 3;
+            data[ind] = color[0];
+            data[ind + 1] = color[1];
+            data[ind + 2] = color[2];
         }
     };
 
-    // Top & Bottom
     for t in 0..thickness {
         for x in rect.x..rect.x + rect.width {
             set_pixel(x, rect.y + t);
@@ -93,7 +85,6 @@ pub fn draw_rect(image: &mut Image<u8, 3>, rect: Rect, color: [u8; 3]) {
         }
     }
 
-    // Left & Right
     for t in 0..thickness {
         for y in rect.y..rect.y + rect.height {
             set_pixel(rect.x + t, y);
@@ -101,12 +92,6 @@ pub fn draw_rect(image: &mut Image<u8, 3>, rect: Rect, color: [u8; 3]) {
         }
     }
 }
-
-//
-// ─────────────────────────────────────────────
-// DRAW FILLED RECT
-// ─────────────────────────────────────────────
-//
 
 pub fn draw_filled_rect(image: &mut Image<u8, 3>, rect: Rect, color: [u8; 3]) {
     let width = image.width() as i32;
@@ -124,19 +109,13 @@ pub fn draw_filled_rect(image: &mut Image<u8, 3>, rect: Rect, color: [u8; 3]) {
 
     for y in y_start..y_end {
         for x in x_start..x_end {
-            let idx = ((y as usize) * (width as usize) + (x as usize)) * 3;
-            data[idx] = color[0];
-            data[idx + 1] = color[1];
-            data[idx + 2] = color[2];
+            let ind = ((y as usize) * (width as usize) + (x as usize)) * 3;
+            data[ind] = color[0];
+            data[ind + 1] = color[1];
+            data[ind + 2] = color[2];
         }
     }
 }
-
-//
-// ─────────────────────────────────────────────
-// DRAW TEXT
-// ─────────────────────────────────────────────
-//
 
 pub fn draw_text(
     image: &mut Image<u8, 3>,
@@ -166,21 +145,22 @@ pub fn draw_text(
         if let Some(outlined) = scaled_font.outline_glyph(glyph) {
             let bounds = outlined.px_bounds();
 
-            outlined.draw(|gx, gy, coverage| {
+            outlined.draw(|glyph_x, glyph_y, coverage| {
                 if coverage <= 0.5 {
                     return;
                 }
 
-                let px = bounds.min.x as i32 + gx as i32 + pen_x as i32;
-                let py = bounds.min.y as i32 + gy as i32 + pen_y as i32;
+                let px_x = bounds.min.x as i32 + glyph_x as i32 + pen_x as i32;
+                let px_y = bounds.min.y as i32 + glyph_y as i32 + pen_y as i32;
 
-                if px >= 0 && px < width && py >= 0 && py < height {
-                    let idx =
-                        ((py as usize) * (width as usize) + (px as usize)) * 3;
+                if px_x >= 0 && px_x < width && px_y >= 0 && px_y < height {
+                    let ind = ((px_y as usize) * (width as usize)
+                        + (px_x as usize))
+                        * 3;
 
-                    data[idx] = color[0];
-                    data[idx + 1] = color[1];
-                    data[idx + 2] = color[2];
+                    data[ind] = color[0];
+                    data[ind + 1] = color[1];
+                    data[ind + 2] = color[2];
                 }
             });
         }

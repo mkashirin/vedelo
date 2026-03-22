@@ -39,36 +39,28 @@ fn main() -> Result<()> {
     video_rs::init().map_err(|e| anyhow::anyhow!(e.to_string()))?;
     let args = Args::parse();
 
-    // --- Init Models ---
     let detector = YoloDetector::new(&args.model, args.imgsz)?;
     let mut tracker = SortTracker::new(args.max_age, args.iou_thresh);
 
-    // --- Init Assets ---
     let font_data =
         include_bytes!("../third-party/fonts/roboto-mono-stripped.ttf");
     let font = FontRef::try_from_slice(font_data)?;
 
-    // --- Init Decoder ---
     let source_path = Path::new(&args.source);
     let mut decoder = Decoder::new(source_path)?;
     let (width, height) = decoder.size();
     let framerate = decoder.frame_rate();
     println!("Input: {}x{} @ {:.2} fps", width, height, framerate);
 
-    // --- Init Encoder ---
     let dest_path = Path::new(&args.destination);
     let settings =
         Settings::preset_h264_yuv420p(width as usize, height as usize, false)
             .with_keyframe_interval(framerate.round() as u64);
-    // Note: No .with_frame_rate() needed; timestamps will dictate speed.
 
     let mut encoder = Encoder::new(dest_path, settings)?;
 
     let mut unique_ids = HashSet::new();
     let mut frame_count = 0;
-
-    // --- Processing Loop ---
-    // decode_iter() returns (Time, Array3<u8>)
     for frame_res in decoder.decode_iter() {
         let (time, frame_array) = match frame_res {
             Ok(f) => f,
