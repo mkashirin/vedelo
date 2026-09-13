@@ -6,6 +6,7 @@ use anyhow::Result;
 use clap::Parser;
 use std::collections::HashSet;
 use std::path::Path;
+use std::time::Instant;
 
 use ab_glyph::FontRef;
 use kornia_image::{Image, ImageSize};
@@ -33,6 +34,23 @@ struct Args {
     imgsz: i32,
     #[arg(long, default_value_t = 60)]
     max_age: i32,
+    /// Number of frames submitted to one model invocation.  Larger values
+    /// improve GPU occupancy for offline video, at the cost of VRAM.
+    #[arg(long, default_value_t = 8, value_parser = clap::value_parser!(usize).range(1..))]
+    batch_size: usize,
+    /// Print detailed track state every N frames; zero disables hot-path logs.
+    #[arg(long, default_value_t = 0)]
+    log_every: usize,
+    /// Print end-to-end throughput after the encoder is flushed.
+    #[arg(long)]
+    profile: bool,
+}
+
+struct PendingFrame {
+    time: video_rs::Time,
+    image: Image<u8, 3>,
+    height: usize,
+    width: usize,
 }
 
 fn main() -> Result<()> {
@@ -60,7 +78,9 @@ fn main() -> Result<()> {
     let mut encoder = Encoder::new(dest_path, settings)?;
 
     let mut unique_ids = HashSet::new();
-    let mut frame_count = 0;
+    let mut frame_count = 0usize;
+    let started = Instant::now();
+    let mut pending = Vec::with_capacity(args.batch_size);
     for frame_res in decoder.decode_iter() {
         let (time, frame_array) = match frame_res {
             Ok(f) => f,
@@ -70,7 +90,7 @@ fn main() -> Result<()> {
         let (h, w, _channels) = frame_array.dim();
         let (raw_buffer, _offset) = frame_array.into_raw_vec_and_offset();
 
-        let mut image = Image::new(
+        let image = Image::new(
             ImageSize {
                 width: w,
                 height: h,
@@ -78,8 +98,75 @@ fn main() -> Result<()> {
             raw_buffer,
         )?;
 
-        // 2. Logic (Detect / Track / Draw)
-        let detections = detector.detect(&image, args.conf)?;
+        pending.push(PendingFrame {
+            time,
+            image,
+            height: h,
+            width: w,
+        });
+        if pending.len() < args.batch_size {
+            continue;
+        }
+        process_batch(
+            &mut pending,
+            &detector,
+            &mut tracker,
+            &font,
+            &mut encoder,
+            &mut unique_ids,
+            &mut frame_count,
+            &args,
+        )?;
+    }
+
+    // Do not discard the tail of a source whose frame count is not divisible
+    // by the selected micro-batch size.
+    if !pending.is_empty() {
+        process_batch(
+            &mut pending,
+            &detector,
+            &mut tracker,
+            &font,
+            &mut encoder,
+            &mut unique_ids,
+            &mut frame_count,
+            &args,
+        )?;
+    }
+
+    encoder.finish()?;
+    println!("Done! Total unique IDs: {}", unique_ids.len());
+    if args.profile {
+        let elapsed = started.elapsed();
+        let fps = frame_count as f64 / elapsed.as_secs_f64();
+        println!(
+            "Profile: {} frames in {:.3}s ({fps:.2} FPS)",
+            frame_count,
+            elapsed.as_secs_f64()
+        );
+    }
+
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn process_batch(
+    pending: &mut Vec<PendingFrame>,
+    detector: &YoloDetector,
+    tracker: &mut SortTracker,
+    font: &FontRef,
+    encoder: &mut Encoder,
+    unique_ids: &mut HashSet<usize>,
+    frame_count: &mut usize,
+    args: &Args,
+) -> Result<()> {
+    let images = pending.iter().map(|frame| &frame.image).collect::<Vec<_>>();
+    let detections_per_frame = detector.detect_batch(&images, args.conf)?;
+
+    for (mut pending_frame, detections) in
+        pending.drain(..).zip(detections_per_frame)
+    {
+        let image = &mut pending_frame.image;
         let active_tracks = tracker.update(detections);
 
         for track in &active_tracks {
@@ -114,39 +201,27 @@ fn main() -> Result<()> {
                 [255, 255, 255],
             );
         }
-        // 3. Zero-Copy conversion back: Kornia Image -> Vec<u8> -> ndarray
-        // This is safe because Kornia didn't change the dimensions, only pixel values.
+        // video-rs currently accepts ndarray-owned host memory.  The only
+        // remaining full-frame copy is isolated here for a future NVENC path.
         let modified_buffer = image.as_slice().to_vec();
 
         // Reconstruct the Array3
-        let out_frame_array =
-            Array3::from_shape_vec((h, w, 3), modified_buffer)?;
+        let out_frame_array = Array3::from_shape_vec(
+            (pending_frame.height, pending_frame.width, 3),
+            modified_buffer,
+        )?;
 
         // 4. Encode with the ORIGINAL timestamp
-        encoder.encode(&out_frame_array, time)?;
+        encoder.encode(&out_frame_array, pending_frame.time)?;
 
-        frame_count += 1;
-        let formatted = active_tracks
-            .iter()
-            .map(|t| {
-                format!(
-                    "(id={}, age={}, tsu={}, hits={}, class={}, score={})",
-                    t.id,
-                    t.age,
-                    t.time_since_update,
-                    t.hits,
-                    t.class_id,
-                    t.det_score,
-                )
-            })
-            .collect::<Vec<_>>()
-            .join(", ");
-
-        println!("Tracks at frame {}: {}", frame_count, formatted);
+        *frame_count += 1;
+        if args.log_every != 0 && *frame_count % args.log_every == 0 {
+            println!(
+                "Tracks at frame {}: {}",
+                frame_count,
+                active_tracks.len()
+            );
+        }
     }
-
-    encoder.finish()?;
-    println!("Done! Total unique IDs: {}", unique_ids.len());
-
     Ok(())
 }

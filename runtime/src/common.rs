@@ -107,12 +107,14 @@ pub fn draw_filled_rect(image: &mut Image<u8, 3>, rect: Rect, color: [u8; 3]) {
         return;
     }
 
+    // Walk contiguous RGB bytes rather than recomputing a 2-D index for each
+    // channel. This is friendlier to auto-vectorization and cache prefetch.
+    let row_bytes = (x_end - x_start) as usize * 3;
     for y in y_start..y_end {
-        for x in x_start..x_end {
-            let ind = ((y as usize) * (width as usize) + (x as usize)) * 3;
-            data[ind] = color[0];
-            data[ind + 1] = color[1];
-            data[ind + 2] = color[2];
+        let start = ((y as usize * width as usize) + x_start as usize) * 3;
+        let row = &mut data[start..start + row_bytes];
+        for pixel in row.chunks_exact_mut(3) {
+            pixel.copy_from_slice(&color);
         }
     }
 }

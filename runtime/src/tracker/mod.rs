@@ -3,7 +3,6 @@ mod kalman;
 use self::kalman::KalmanFilter;
 use crate::common::{Rect, calculate_iou};
 use crate::detector::Detection;
-use std::collections::HashSet;
 
 pub struct Track {
     pub id: usize,
@@ -21,6 +20,7 @@ pub struct SortTracker {
     next_id: usize,
     max_age: i32,
     iou_threshold: f64,
+    cost_matrix: Vec<i32>,
 }
 
 impl SortTracker {
@@ -30,6 +30,7 @@ impl SortTracker {
             next_id: 1,
             max_age,
             iou_threshold,
+            cost_matrix: Vec::new(),
         }
     }
 
@@ -42,26 +43,34 @@ impl SortTracker {
         let num_tracks = self.tracks.len();
         let num_dets = detections.len();
         let mut matched_pairs = Vec::new();
-        let mut unmatched_tracks = (0..num_tracks).collect::<HashSet<_>>();
-        let mut unmatched_dets = (0..num_dets).collect::<HashSet<_>>();
+        // Dense flags are faster and allocation-free compared with HashSet for
+        // the compact, index-addressed assignment problem.
+        let mut unmatched_dets = vec![true; num_dets];
 
         if num_tracks > 0 && num_dets > 0 {
-            let mut cost_matrix = Vec::with_capacity(num_tracks * num_dets);
+            self.cost_matrix.clear();
+            self.cost_matrix.reserve(num_tracks * num_dets);
 
             for track in &self.tracks {
                 for det in &detections {
-                    let iou = calculate_iou(track.last_rect, det.rect);
+                    // Vehicles of different classes should never consume an
+                    // assignment merely because their boxes overlap.
+                    let iou = if track.class_id == det.class_id {
+                        calculate_iou(track.last_rect, det.rect)
+                    } else {
+                        0.0
+                    };
                     // Convert float cost to integer for Hungarian:
                     //
                     // $$ \textrm{Cost} = (1.0 - \textrm{IoU}) * 1000 $$
                     let weight = ((1.0 - iou) * 1000.0) as i32;
-                    cost_matrix.push(weight);
+                    self.cost_matrix.push(weight);
                 }
             }
 
             // Call minimize with the flattened slice.
             let assignment =
-                hungarian::minimize(&cost_matrix, num_tracks, num_dets);
+                hungarian::minimize(&self.cost_matrix, num_tracks, num_dets);
 
             for (t_ind, &maybe_d_ind) in assignment.iter().enumerate() {
                 if let Some(d_ind) = maybe_d_ind {
@@ -73,15 +82,14 @@ impl SortTracker {
                     //     * $\texrm{CM}$ is for `cost_matrix`;
                     //     * $t_i$, $d_i$ are `t_ind` and `d_ind`;
                     //     * $n_d$ means `num_dets`
-                    let cost = cost_matrix[t_ind * num_dets + d_ind];
+                    let cost = self.cost_matrix[t_ind * num_dets + d_ind];
 
                     // Convert back to IoU: $\textrm{IoU} = 1.0 - (c / 1000.0)$
                     let iou = 1.0 - (cost as f64 / 1000.0);
 
                     if iou > self.iou_threshold {
                         matched_pairs.push((t_ind, d_ind));
-                        unmatched_tracks.remove(&t_ind);
-                        unmatched_dets.remove(&d_ind);
+                        unmatched_dets[d_ind] = false;
                     }
                 }
             }
@@ -95,12 +103,16 @@ impl SortTracker {
             track.kf.update(det.rect);
             track.last_rect = det.rect;
             track.class_id = det.class_id;
+            track.det_score = det.score;
             track.hits += 1;
             track.time_since_update = 0;
             track.age += 1;
         }
 
-        for d_ind in unmatched_dets {
+        for (d_ind, is_unmatched) in unmatched_dets.into_iter().enumerate() {
+            if !is_unmatched {
+                continue;
+            }
             let det = &detections[d_ind];
             self.tracks.push(Track {
                 id: self.next_id,

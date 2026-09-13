@@ -101,7 +101,9 @@ run-v1n:
         -d assets/video_track_by_v1n_batch8_imgsz1280_best_cuda.mp4 \
         --conf 0.6 \
         --iou-thresh 0.1 \
-        --max-age 90
+        --max-age 90 \
+        --batch-size 8 \
+        --profile
 
 [group("runtime")]
 run-v1s:
@@ -111,7 +113,9 @@ run-v1s:
         -d assets/video_track_by_v1s_batch8_imgsz1280_best_cuda.mp4 \
         --conf 0.7 \
         --iou-thresh 0.1 \
-        --max-age 90
+        --max-age 90 \
+        --batch-size 8 \
+        --profile
 
 [group("runtime")]
 clean:
