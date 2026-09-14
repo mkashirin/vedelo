@@ -14,3 +14,6 @@ training-stage/artifacts
 training-stage/dataset
 models/
 yolo*.pt
+
+# macOS filysystem
+.DS_Store
