@@ -36,7 +36,7 @@ struct Args {
     max_age: i32,
     /// Number of frames submitted to one model invocation.  Larger values
     /// improve GPU occupancy for offline video, at the cost of VRAM.
-    #[arg(long, default_value_t = 8, value_parser = clap::value_parser!(usize).range(1..))]
+    #[arg(long, default_value_t = 8, value_parser = parse_batch_size)]
     batch_size: usize,
     /// Print detailed track state every N frames; zero disables hot-path logs.
     #[arg(long, default_value_t = 0)]
@@ -44,6 +44,18 @@ struct Args {
     /// Print end-to-end throughput after the encoder is flushed.
     #[arg(long)]
     profile: bool,
+}
+
+fn parse_batch_size(value: &str) -> std::result::Result<usize, String> {
+    let batch_size = value
+        .parse::<usize>()
+        .map_err(|_| "must be a positive integer".to_owned())?;
+
+    if batch_size == 0 {
+        return Err("must be at least 1".to_owned());
+    }
+
+    Ok(batch_size)
 }
 
 struct PendingFrame {
@@ -166,7 +178,7 @@ fn process_batch(
     for (mut pending_frame, detections) in
         pending.drain(..).zip(detections_per_frame)
     {
-        let image = &mut pending_frame.image;
+        let mut image = &mut pending_frame.image;
         let active_tracks = tracker.update(detections);
 
         for track in &active_tracks {
