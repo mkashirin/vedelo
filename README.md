@@ -26,43 +26,39 @@ builds require:
 - [Rust](https://rustup.rs/), [uv](https://docs.astral.sh/uv/), and
   [just](https://just.systems/).
 - Python 3.14 or newer.
+- PyTorch **2.10.0**, matching the runtime's tch 0.23 bindings (pinned in
+  `pyproject.toml`). Newer PyTorch versions are not interchangeable with these
+  bindings; changing the C++ language standard does not resolve that mismatch.
 
 The build compiles pinned FFmpeg, x264, and NVIDIA codec headers from the Git
 submodules. It uses those libraries for H.264 decode/encode and NVIDIA codec
 support on Linux. macOS builds omit NVIDIA headers and CUDA configuration.
-The pinned FFmpeg source is **6.1.1**. Alternatively set `FFMPEG_SYSTEM=1`
-to use system development libraries compatible with the Rust wrappers; an
-executable alone is insufficient. `ffmpeg-next` 8.0.0 supports multiple native
-FFmpeg versions and does not require native FFmpeg 8. The preflight prints the
-versions of the four core video libraries found by pkg-config; it is a discovery
-check, not proof of API, linker, codec or runtime compatibility.
+The pinned FFmpeg source is **6.1.1**. Only this bundled build is supported:
+FFmpeg and x264 are built as static archives with the minimal codec/protocol
+configuration in `justfile`, to keep the dynamic-link footprint and runtime
+binary size small. PyTorch and the necessary platform libraries remain
+dynamically linked.
 
 ### macOS development
 
 Use Xcode command-line tools, Rust, just, pkg-config, and an existing Python
 PyTorch **2.10** installation matching tch 0.23. Set `VEDELO_PYTHON` to its
-Python executable (default `.venv/bin/python`). Only build/build-dev recipes discover libtorch from
-that interpreter, without running uv sync; bootstrap/list/dry-run do not import
-Torch. The runtime discovers its own library rpath, not transitive Cargo metadata.
-Use `just build-deps` to build the pinned minimal FFmpeg/x264 configuration
-with portable job counts and CPU codecs, rather than replacing it to match the
-Rust crate's version number. Supply matching headers, libraries and pkg-config
-files if using system mode. This source recipe
-initializes submodules and therefore requires network access if absent; do not
-run it in offline/no-install validation sessions.
+Python executable (default `.venv/bin/python`). The build recipes locate
+libtorch from that interpreter directly in `justfile`; `runtime/build.rs` sets
+the executable's library rpath. Use `just build-deps` to build the pinned minimal
+FFmpeg/x264 configuration with CPU codecs. This initializes the submodules and
+requires network access if they are absent.
 
 With prerequisites already present:
 
 ```bash
-FFMPEG_SYSTEM=1 just build-dev
-# Direct Cargo does not read FFMPEG_SYSTEM or VEDELO_PYTHON:
-# System pkg-config mode: retain its compiled defaults; optionally export
-# PKG_CONFIG_PATH=/your/ffmpeg/lib/pkgconfig (and any intentional LIBDIR override).
+just build-dev
+# Direct Cargo does not apply the Just recipe's environment; use the same
+# bundled native libraries and pinned PyTorch installation explicitly:
 export LIBTORCH="$("${VEDELO_PYTHON:-.venv/bin/python}" -c 'import pathlib, torch; print(pathlib.Path(torch.__file__).parent)')"
-unset LIBTORCH_USE_PYTORCH LIBTORCH_LIB
-# Instead, for pinned native libraries, before cd runtime:
-# export PKG_CONFIG_PATH="$PWD/runtime/third-party/install/lib/pkgconfig"
-# export PKG_CONFIG_LIBDIR="$PKG_CONFIG_PATH"
+unset LIBTORCH_USE_PYTORCH LIBTORCH_LIB FFMPEG_DIR PKG_CONFIG_SYSROOT_DIR
+export PKG_CONFIG_PATH="$PWD/runtime/third-party/install/lib/pkgconfig"
+export PKG_CONFIG_LIBDIR="$PKG_CONFIG_PATH"
 cd runtime
 cargo check --locked --offline
 cargo test --locked --offline
@@ -78,13 +74,6 @@ explicitly rejected: pinned torch-sys appends `/lib` to that override, so treati
 it as an actual library directory would produce inconsistent linking. No new
 Cargo dependency or synthetic `DEP_TCH_*` export is used.
 
-CPU tensor/policy tests do not establish MPS model compatibility. Separately
-exercise a real TorchScript model on `--device cpu` and `--device mps` with CPU
-codecs, including partial batches and output frame/timestamp checks. MPS uses
-FP32; archive remapping cannot fix hard-coded CUDA operators or unsupported MPS
-operations. NVIDIA acceptance remains a separate Linux CUDA/NVENC/NVDEC check;
-macOS success does not validate it.
-
 ## Build
 
 Clone the repository with its submodules, create the Python environment, build
@@ -98,19 +87,29 @@ just build-deps
 just build
 ```
 
-`just venv` creates `.venv` if missing and always runs `uv sync --all-groups`;
+`just venv` creates `.venv` if missing and always runs `uv sync --locked --all-groups`;
 `just sync` also synchronizes that standard environment. Legacy `.vedelo-env`
 users can explicitly set `VEDELO_PYTHON="$PWD/.vedelo-env/bin/python"` for native
 build recipes; bootstrap intentionally uses `.venv`, not the legacy directory.
-System FFmpeg recipes preserve pkg-config defaults (including Linux multiarch)
-and explicit user `PKG_CONFIG_LIBDIR`; pinned recipes isolate `.pc` lookup to
-the install prefix unless LIBDIR is explicitly overridden. The discovery
-preflight does not enforce a native FFmpeg major version; actual compatibility
-is checked by the Rust bindings during compilation and linking.
+FFmpeg discovery is restricted to the bundled install prefix even if the
+shell has custom `PKG_CONFIG_PATH`, `PKG_CONFIG_LIBDIR`, or `FFMPEG_DIR` settings.
+The Rust bindings compile and link against those libraries as part of the build.
+
+`just build-dev` builds the debug runtime at `runtime/target/debug/vedelo-rt`.
+If an existing `.venv` has a different PyTorch version, run `just sync` to install
+the pinned dependencies (including the matching CUDA libraries).
 
 `just build` creates the release binary at `runtime/target/release/vedelo-rt`
 and symlinks it to `./vedelo-rt`. If the repository was cloned without
 submodules, run `git submodule update --init --recursive` before `just build-deps`.
+
+### Dependency locks
+
+These locks make builds reproducible and prevent unreviewed API/ABI changes,
+particularly between **tch 0.23.0 and PyTorch 2.10.0**. Upgrade dependencies
+intentionally: update the manifest pins, regenerate the affected lockfile with
+`uv lock` or `cargo update --manifest-path runtime/Cargo.toml`, then rerun the
+build and tests. Keep Torch and tch compatible when upgrading either.
 
 ## Run inference
 
@@ -181,10 +180,11 @@ claimed without fresh measurements.
 
 The codec adapter and pipeline require fresh verification on supported Linux
 with initialized/built native dependencies, matching libtorch, a real NVIDIA
-GPU/driver and the exported model. Run locked compilation and tests sequentially
-(`cargo check --locked`, `cargo test --locked` in `runtime/`) after parallel
-source edits finish. Pure-std pipeline tests can also be compiled separately
-from `runtime/src/pipeline.rs`. Test CPU/CUDA/auto initialization and fallback,
+GPU/driver and the exported model. With the build environment configured as
+above, run `cargo check --locked` and `cargo test --locked` in `runtime/`.
+The Rust unit tests cover device selection and preprocessing correctness,
+batch/frame ordering and timestamps, bounded queues and failure propagation,
+and codec EOF/quality policy. Test CPU/CUDA/auto initialization and fallback,
 missing NVENC/device failures, decode errors, frame counts 0/1/B-1/B/B+1,
 irregular timestamps, and `ffprobe` output PTS/DTS/frame counts after flush.
 CUDA decoder initialization alone must not be reported as NVDEC verification.
@@ -209,15 +209,7 @@ decode, preprocessing, inference, tracking, drawing, and output encoding.
 
 Host: NVIDIA GeForce RTX 5060 8 GB and AMD Ryzen 5 5600X.
 
-| Model                             | Confidence  | Elapsed | End-to-end throughput | Unique IDs  |
-| --------------------------------- | ----------: | ------: | --------------------: | ----------: |
-| `v1n_batch8_imgsz1280_best_cuda`  |         0.6 | 10.112s |             19.98 FPS |           4 |
-| `v1s_batch8_imgsz1280_best_cuda`  |         0.7 | 11.307s |             17.87 FPS |           4 |
-
-These historical results predate the codec/pipeline changes above and do not
-validate their performance. They are workload-specific end-to-end results, not raw model-only benchmark
-figures. Resolution, codec, storage, GPU driver, model settings, and tracker
-parameters can change the observed FPS.
+**TODO:** Add profiling results table.
 
 ## Train and export
 
@@ -239,10 +231,3 @@ actual model/operator compatibility must still be checked.
 `just export` produces TorchScript and ONNX exports from the configured training
 artifact. Review the constants in `vedelo/train.py` and `vedelo/export.py`
 before launching a new training run or export.
-
-Run Python device-policy tests and the small, availability-gated MPS training
-smoke test without downloading models or datasets:
-
-```bash
-.venv/bin/python -m unittest discover -s tests -v
-```

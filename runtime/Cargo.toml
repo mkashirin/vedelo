@@ -4,17 +4,17 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-ab_glyph = "0.2.32"
-anyhow = "1.0.102"
-clap = { version = "4.5.60", features = ["derive"] }
-hungarian = "1.1.1"
+ab_glyph = "=0.2.32"
+anyhow = "=1.0.102"
+clap = { version = "=4.5.60", features = ["derive"] }
+hungarian = "=1.1.1"
 ffmpeg-next = "=8.0.0"
 kornia-image = { git = "https://github.com/kornia/kornia-rs", tag = "v0.1.9" }
 kornia-imgproc = { git = "https://github.com/kornia/kornia-rs", tag = "v0.1.9" }
-nalgebra = "0.34.1"
-ndarray = "0.17.2"
-tch = "0.23.0"
-video-rs = { version = "0.11.0", features = ["ndarray"] }
+nalgebra = "=0.34.1"
+ndarray = "=0.17.2"
+tch = "=0.23.0"
+video-rs = { version = "=0.11.0", features = ["ndarray"] }
 
 [profile.release]
 opt-level = 3

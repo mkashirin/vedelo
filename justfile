@@ -22,7 +22,6 @@ mac_cc_flag := if os() == "macos" {
 mac_sysroot := if os() == "macos" {
     '--sysroot="${SDKROOT:-$(xcrun --sdk macosx --show-sdk-path)}"'
 } else { "" }
-ffmpeg_system := env("FFMPEG_SYSTEM", "0")
 exported_models := "training-stage/artifacts/exported"
 
 default: build
@@ -31,15 +30,13 @@ export FFMPEG_INSTALL_DIR := (
     justfile_directory() + "/runtime/third-party/install"
 )
 export DEP_FFMPEG_LIB := FFMPEG_INSTALL_DIR + "/lib"
-# System mode leaves pkg-config's defaults and user overrides intact.
-# Pinned mode uses repository-built libraries, not an unrelated system install.
-pkg_env := if ffmpeg_system == "1" { "" } else {
-    (
-        'export PKG_CONFIG_PATH="$FFMPEG_INSTALL_DIR/lib/pkgconfig"; '
-        + 'export PKG_CONFIG_LIBDIR="'
-        + '${PKG_CONFIG_LIBDIR-$FFMPEG_INSTALL_DIR/lib/pkgconfig}";'
-    )
-}
+# Only the bundled minimal build is supported. Do not inherit system lookup
+# paths or ffmpeg-sys's FFMPEG_DIR bypass (which skips pkg-config entirely).
+pkg_env := (
+    'export PKG_CONFIG_PATH="$FFMPEG_INSTALL_DIR/lib/pkgconfig"; '
+    + 'export PKG_CONFIG_LIBDIR="$FFMPEG_INSTALL_DIR/lib/pkgconfig"; '
+    + 'unset FFMPEG_DIR PKG_CONFIG_SYSROOT_DIR;'
+)
 
 [group("vedelo")]
 venv:
@@ -47,17 +44,15 @@ venv:
     if [ ! -d .venv ]; then
         uv venv .venv --prompt vedelo || exit $?
     fi
-    uv sync --all-groups
+    uv sync --locked --all-groups
 
 [group("vedelo")]
 sync:
-    uv sync --all-groups
+    uv sync --locked --all-groups
 
 [group("runtime")]
 build-deps:
     git submodule update --init --recursive
-    @echo "$FFMPEG_INSTALL_DIR"
-    {{pkg_env}} pkg-config --list-all
     mkdir -p "$FFMPEG_INSTALL_DIR"
 
     if [ "{{os()}}" = linux ]; then \
@@ -108,22 +103,7 @@ build-deps:
     make -j{{jobs}} && make install
 
 [group("runtime")]
-check-ffmpeg:
-    command -v pkg-config >/dev/null || { \
-        printf '%s %s\n' \
-            'pkg-config is required; build the pinned native dependencies' \
-            'with just build-deps' >&2; \
-        exit 1; \
-    }
-    # Discovery only; the Rust bindings detect the installed FFmpeg API.
-    {{pkg_env}} \
-    for name in libavcodec libavformat libavutil libswscale; do \
-        version=$(pkg-config --print-errors --modversion "$name") || exit 1; \
-        printf '%s %s\n' "$name" "$version"; \
-    done
-
-[group("runtime")]
-build: check-ffmpeg
+build:
     {{pkg_env}} \
     LIBTORCH="$("{{python}}" -c \
         'import pathlib, torch; print(pathlib.Path(torch.__file__).parent)')" \
@@ -133,7 +113,7 @@ build: check-ffmpeg
     ln -sf runtime/target/release/vedelo-rt vedelo-rt
 
 [group("runtime")]
-build-dev: check-ffmpeg
+build-dev:
     {{pkg_env}} \
     LIBTORCH="$("{{python}}" -c \
         'import pathlib, torch; print(pathlib.Path(torch.__file__).parent)')" \
@@ -189,20 +169,20 @@ clean-build-dev: clean build-dev
 
 [group("vedelo")]
 download-model:
-    uv run python -c "from vedelo import *; hf_hub_download_model_v1()"
+    uv run --locked python -c "from vedelo import *; hf_hub_download_model_v1()"
 
 [group("vedelo")]
 download-dataset:
-    uv run python -c "from vedelo import *; snapshot_download_dataset_v1()"
+    uv run --locked python -c "from vedelo import *; snapshot_download_dataset_v1()"
 
 [group("vedelo")]
 export:
-    uv run python -m vedelo.export
+    uv run --locked python -m vedelo.export
 
 [group("vedelo")]
 train:
-    uv run python -m vedelo.train
+    uv run --locked python -m vedelo.train
 
 [group("vedelo")]
 track:
-    uv run python -m vedelo.track
+    uv run --locked python -m vedelo.track

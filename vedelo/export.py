@@ -14,8 +14,9 @@ EXPORT_PATH = f"{ROOT_DIR}/exported"
 CHECKPOINT = "best"
 # Export portable FP32 graphs on non-CUDA hosts, even when training uses MPS.
 # The Rust runtime can load a CPU TorchScript archive onto MPS explicitly.
-DEVICE = "cuda" if torch_device_available() == "cuda" else "cpu"
-HALF = DEVICE == "cuda"
+# DEVICE = "cuda" if torch_device_available() == "cuda" else "cpu"
+DEVICE = "cpu"
+QUANTIZE = 16 if DEVICE == "cuda" else 32
 EXPORT_FORMATS = ("torchscript", "onnx")
 
 if __name__ == "__main__":
@@ -23,7 +24,9 @@ if __name__ == "__main__":
     export_name = f"{NAME}_{CHECKPOINT}_{DEVICE}"
     for format in EXPORT_FORMATS:
         if not Path(f"{EXPORT_PATH}/{export_name}.{format}").exists():
-            model.export(format=format, half=HALF, dynamic=True, device=DEVICE)
+            model.export(
+                format=format, dynamic=True, device=DEVICE, quantize=QUANTIZE
+            )
 
     weights_dir = Path(f"{PROJECT}/weights")
     if weights_dir.exists():
