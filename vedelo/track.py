@@ -5,7 +5,7 @@ from typing import List
 
 from ultralytics import YOLO
 
-from vedelo import ROOT
+from vedelo import ROOT, torch_device_available
 
 
 NAME = "v1s_batch12_imgsz1280"
@@ -13,8 +13,10 @@ VAL_PATH = Path("training-stage/dataset/images/val")
 SOURCE = "training-stage/dataset/test/video_test.mp4"
 TRACKER = "botsort.yaml"
 MODE = "track"
+DEVICE = torch_device_available()
 ARGS = dict(
     source=SOURCE,
+    device=DEVICE,
     stream=True,
     imgsz=1280,
     conf=0.5,
@@ -36,6 +38,7 @@ if __name__ == "__main__":
         VAL_PATH / val_dir[random.randint(0, len(val_dir))],
         conf=0.5,
         iou=0.2,
+        device=DEVICE,
         save=True,
         project=ROOT / "artifacts",
         name=f"{NAME}_predict",

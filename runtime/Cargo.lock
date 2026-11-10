@@ -1617,6 +1617,7 @@ dependencies = [
  "ab_glyph",
  "anyhow",
  "clap",
+ "ffmpeg-next",
  "hungarian",
  "kornia-image",
  "kornia-imgproc",

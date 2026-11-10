@@ -14,7 +14,7 @@ ARGS = dict(
     data=DATA,
     epochs=60,
     patience=20,
-    batch=12,
+    batch=8,
     imgsz=1280,
     save_period=20,
     device=DEVICE,
@@ -24,8 +24,9 @@ ARGS = dict(
     exist_ok=True,
     rect=True,
     cos_lr=True,
-    amp=True,
-    compile=True,
+    # Keep CPU/MPS eager and FP32; avoid the failing CPU Inductor header path.
+    amp=DEVICE == "cuda",
+    compile=DEVICE == "cuda",
 )
 
 

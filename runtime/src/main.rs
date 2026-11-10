@@ -1,6 +1,8 @@
 mod common;
 mod detector;
+mod pipeline;
 mod tracker;
+mod video;
 
 use anyhow::Result;
 use clap::Parser;
@@ -8,13 +10,14 @@ use std::collections::HashSet;
 use std::path::Path;
 use std::time::Instant;
 
+use crate::video::{Backend, Encoder};
 use ab_glyph::FontRef;
 use kornia_image::{Image, ImageSize};
 use ndarray::Array3;
-use video_rs::{self, Decoder, Encoder, encode::Settings};
+use video_rs;
 
 use crate::common::{Rect, draw_filled_rect, draw_rect, draw_text};
-use crate::detector::YoloDetector;
+use crate::detector::{ModelDevice, YoloDetector};
 use crate::tracker::SortTracker;
 
 #[derive(Parser, Debug)]
@@ -22,6 +25,9 @@ use crate::tracker::SortTracker;
 struct Args {
     #[arg(short, long)]
     model: String,
+    /// Model inference device, independent of video codecs.
+    #[arg(long, value_enum, default_value = "auto")]
+    device: ModelDevice,
     #[arg(short, long)]
     source: String,
     #[arg(short, long)]
@@ -44,6 +50,12 @@ struct Args {
     /// Print end-to-end throughput after the encoder is flushed.
     #[arg(long)]
     profile: bool,
+    /// Video decode backend, independent of model device selection.
+    #[arg(long, value_enum, default_value = "cpu")]
+    decode_backend: Backend,
+    /// H.264 encoder: CPU libx264 or CUDA h264_nvenc.
+    #[arg(long, value_enum, default_value = "cpu")]
+    encode_backend: Backend,
 }
 
 fn parse_batch_size(value: &str) -> std::result::Result<usize, String> {
@@ -69,7 +81,8 @@ fn main() -> Result<()> {
     video_rs::init().map_err(|e| anyhow::anyhow!(e.to_string()))?;
     let args = Args::parse();
 
-    let detector = YoloDetector::new(&args.model, args.imgsz)?;
+    let detector =
+        YoloDetector::with_device(&args.model, args.imgsz, args.device)?;
     let mut tracker = SortTracker::new(args.max_age, args.iou_thresh);
 
     let font_data =
@@ -77,76 +90,98 @@ fn main() -> Result<()> {
     let font = FontRef::try_from_slice(font_data)?;
 
     let source_path = Path::new(&args.source);
-    let mut decoder = Decoder::new(source_path)?;
+    let mut decoder = video::decoder(source_path, args.decode_backend)?;
     let (width, height) = decoder.size();
     let framerate = decoder.frame_rate();
     println!("Input: {}x{} @ {:.2} fps", width, height, framerate);
 
     let dest_path = Path::new(&args.destination);
-    let settings =
-        Settings::preset_h264_yuv420p(width as usize, height as usize, false)
-            .with_keyframe_interval(framerate.round() as u64);
-
-    let mut encoder = Encoder::new(dest_path, settings)?;
+    let mut encoder = Encoder::new(
+        dest_path,
+        width,
+        height,
+        framerate,
+        args.encode_backend,
+    )?;
 
     let mut unique_ids = HashSet::new();
     let mut frame_count = 0usize;
     let started = Instant::now();
-    let mut pending = Vec::with_capacity(args.batch_size);
-    for frame_res in decoder.decode_iter() {
-        let (time, frame_array) = match frame_res {
-            Ok(f) => f,
-            Err(_) => break, // End of stream or error
-        };
+    let batch_size = args.batch_size;
+    pipeline::run(
+        move |tx| {
+            let mut produce = || -> Result<()> {
+                while let Some(pending) =
+                    pipeline::next_batch(batch_size, || {
+                        let mut next = || -> Result<Option<PendingFrame>> {
+                            let Some((time, frame_array)) =
+                                video::decoded_frame(decoder.decode())?
+                            else {
+                                return Ok(None);
+                            };
 
-        let (h, w, _channels) = frame_array.dim();
-        let (raw_buffer, _offset) = frame_array.into_raw_vec_and_offset();
+                            let (h, w, _channels) = frame_array.dim();
+                            let (raw_buffer, offset) =
+                                frame_array.into_raw_vec_and_offset();
+                            anyhow::ensure!(
+                                offset.unwrap_or(0) == 0,
+                                "decoded RGB storage has a nonzero offset"
+                            );
 
-        let image = Image::new(
-            ImageSize {
-                width: w,
-                height: h,
-            },
-            raw_buffer,
-        )?;
+                            let image = Image::new(
+                                ImageSize {
+                                    width: w,
+                                    height: h,
+                                },
+                                raw_buffer,
+                            )?;
 
-        pending.push(PendingFrame {
-            time,
-            image,
-            height: h,
-            width: w,
-        });
-        if pending.len() < args.batch_size {
-            continue;
-        }
-        process_batch(
-            &mut pending,
-            &detector,
-            &mut tracker,
-            &font,
-            &mut encoder,
-            &mut unique_ids,
-            &mut frame_count,
-            &args,
-        )?;
-    }
-
-    // Do not discard the tail of a source whose frame count is not divisible
-    // by the selected micro-batch size.
-    if !pending.is_empty() {
-        process_batch(
-            &mut pending,
-            &detector,
-            &mut tracker,
-            &font,
-            &mut encoder,
-            &mut unique_ids,
-            &mut frame_count,
-            &args,
-        )?;
-    }
-
-    encoder.finish()?;
+                            Ok(Some(PendingFrame {
+                                time,
+                                image,
+                                height: h,
+                                width: w,
+                            }))
+                        };
+                        next().map_err(|error| format!("{error:#}"))
+                    })
+                    .map_err(anyhow::Error::msg)?
+                {
+                    tx.send(pending).map_err(|_| {
+                        anyhow::anyhow!("inference disconnected")
+                    })?;
+                }
+                Ok(())
+            };
+            produce().map_err(|error| format!("decode: {error:#}"))
+        },
+        |mut pending| {
+            process_batch(
+                &mut pending,
+                &detector,
+                &mut tracker,
+                &font,
+                &mut unique_ids,
+                &mut frame_count,
+                &args,
+            )
+            .map_err(|error| format!("inference/tracking: {error:#}"))
+        },
+        move |rx| {
+            let consume = || -> Result<()> {
+                // Scaling context stays on the encoding thread and is reused.
+                let mut scaler = encoder.scaler()?;
+                for batch in rx {
+                    for (time, frame) in batch {
+                        encoder.encode(&frame, time, &mut scaler)?;
+                    }
+                }
+                encoder.finish()
+            };
+            consume().map_err(|error| format!("encode: {error:#}"))
+        },
+    )
+    .map_err(anyhow::Error::msg)?;
     println!("Done! Total unique IDs: {}", unique_ids.len());
     if args.profile {
         let elapsed = started.elapsed();
@@ -167,13 +202,19 @@ fn process_batch(
     detector: &YoloDetector,
     tracker: &mut SortTracker,
     font: &FontRef,
-    encoder: &mut Encoder,
     unique_ids: &mut HashSet<usize>,
     frame_count: &mut usize,
     args: &Args,
-) -> Result<()> {
+) -> Result<Vec<(video_rs::Time, Array3<u8>)>> {
     let images = pending.iter().map(|frame| &frame.image).collect::<Vec<_>>();
     let detections_per_frame = detector.detect_batch(&images, args.conf)?;
+    anyhow::ensure!(
+        detections_per_frame.len() == pending.len(),
+        "inference returned {} results for {} frames",
+        detections_per_frame.len(),
+        pending.len()
+    );
+    let mut output = Vec::with_capacity(pending.len());
 
     for (mut pending_frame, detections) in
         pending.drain(..).zip(detections_per_frame)
@@ -213,9 +254,8 @@ fn process_batch(
                 [255, 255, 255],
             );
         }
-        // video-rs currently accepts ndarray-owned host memory.  The only
-        // remaining full-frame copy is isolated here for a future NVENC path.
-        let modified_buffer = image.as_slice().to_vec();
+        // Move the owned CPU allocation; codec conversion still copies.
+        let modified_buffer = pending_frame.image.0.storage.into_vec();
 
         // Reconstruct the Array3
         let out_frame_array = Array3::from_shape_vec(
@@ -224,7 +264,7 @@ fn process_batch(
         )?;
 
         // 4. Encode with the ORIGINAL timestamp
-        encoder.encode(&out_frame_array, pending_frame.time)?;
+        output.push((pending_frame.time, out_frame_array));
 
         *frame_count += 1;
         if args.log_every != 0 && *frame_count % args.log_every == 0 {
@@ -235,5 +275,5 @@ fn process_batch(
             );
         }
     }
-    Ok(())
+    Ok(output)
 }

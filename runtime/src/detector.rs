@@ -5,6 +5,32 @@ use tch::{Device, Kind, Tensor};
 
 use crate::common::Rect;
 
+#[derive(Debug, Copy, Clone, clap::ValueEnum)]
+pub enum ModelDevice {
+    Auto,
+    Cpu,
+    Cuda,
+    Mps,
+}
+
+impl ModelDevice {
+    fn resolve(self, cuda: bool, mps: bool) -> Result<Device> {
+        match self {
+            Self::Auto if cuda => Ok(Device::Cuda(0)),
+            Self::Auto if mps => Ok(Device::Mps),
+            Self::Auto | Self::Cpu => Ok(Device::Cpu),
+            Self::Cuda if cuda => Ok(Device::Cuda(0)),
+            Self::Mps if mps => Ok(Device::Mps),
+            Self::Cuda => {
+                anyhow::bail!("CUDA model device requested but unavailable")
+            }
+            Self::Mps => {
+                anyhow::bail!("MPS model device requested but unavailable")
+            }
+        }
+    }
+}
+
 #[derive(Debug, Copy, Clone)]
 pub struct Detection {
     pub rect: Rect,
@@ -27,16 +53,22 @@ pub struct YoloDetector {
 }
 
 impl YoloDetector {
-    pub fn new(model_path: &str, input_size: i32) -> Result<Self> {
-        let device = if tch::Cuda::is_available() {
-            println!("Detector running on CUDA");
-            Device::Cuda(0)
-        } else {
-            println!("Detector running on CPU");
-            Device::Cpu
-        };
+    pub fn with_device(
+        model_path: &str,
+        input_size: i32,
+        requested: ModelDevice,
+    ) -> Result<Self> {
+        anyhow::ensure!(
+            input_size > 0,
+            "detector input_size must be positive"
+        );
+        checked_rgb_len(input_size as usize, input_size as usize)?;
+        let device = requested
+            .resolve(tch::Cuda::is_available(), tch::utils::has_mps())?;
+        println!("Detector running on {device:?}");
 
-        let mut model = tch::CModule::load(model_path)?;
+        // Remap archive storage before loading (including CUDA exports on macOS).
+        let mut model = tch::CModule::load_on_device(model_path, device)?;
         model.set_eval();
         // The exported CUDA models are FP16.  Loading them as FP32 silently
         // doubles their activation footprint and prevents Tensor Core use.
@@ -53,16 +85,6 @@ impl YoloDetector {
             input_kind,
             input_size: input_size as usize,
         })
-    }
-
-    pub fn detect(
-        &self,
-        image: &Image<u8, 3>,
-        conf_threshold: f64,
-    ) -> Result<Vec<Detection>> {
-        let images = [image];
-        let batches = self.detect_batch(&images, conf_threshold)?;
-        Ok(batches.into_iter().next().unwrap_or_default())
     }
 
     /// Runs one inference for a group of video frames.  Batching is the main
@@ -176,58 +198,277 @@ impl YoloDetector {
         &self,
         images: &[&Image<u8, 3>],
     ) -> Result<(Tensor, Vec<PadInfo>)> {
-        let target = self.input_size;
-        let mut padded = vec![114u8; images.len() * target * target * 3];
-        let mut pad_infos = Vec::with_capacity(images.len());
+        let (padded, pad_infos) = preprocess_bytes(images, self.input_size)?;
+        // Transfer NHWC bytes, not host-normalized Half/Float pixels. Casting
+        // and normalization now happen on the inference device (blocking upload).
+        let tensor = bytes_to_tensor(
+            &padded,
+            images.len(),
+            self.input_size,
+            self.device,
+            self.input_kind,
+        )?;
+        Ok((tensor, pad_infos))
+    }
+}
 
-        for (batch_index, image) in images.iter().enumerate() {
-            let size = image.size();
+/// Upload NHWC uint8 before casting/normalizing on the inference device.
+fn bytes_to_tensor(
+    bytes: &[u8],
+    batch: usize,
+    size: usize,
+    device: Device,
+    kind: Kind,
+) -> Result<Tensor> {
+    Ok(Tensor::f_from_slice(bytes)?
+        .f_reshape([
+            i64::try_from(batch)?,
+            i64::try_from(size)?,
+            i64::try_from(size)?,
+            3,
+        ])?
+        .f_to_device(device)?
+        .f_permute([0, 3, 1, 2])?
+        .f_to_kind(kind)?
+        .f_div_scalar(255.0)?)
+}
 
-            let ratio = (target as f64 / size.width as f64)
-                .min(target as f64 / size.height as f64);
+fn checked_rgb_len(width: usize, height: usize) -> Result<usize> {
+    width
+        .checked_mul(height)
+        .and_then(|n| n.checked_mul(3))
+        .filter(|&n| n <= isize::MAX as usize)
+        .ok_or_else(|| {
+            anyhow::anyhow!("RGB image size overflows addressable storage")
+        })
+}
 
-            let new_w = (size.width as f64 * ratio).round() as usize;
-            let new_h = (size.height as f64 * ratio).round() as usize;
-            let mut resized = Image::<u8, 3>::from_size_val(
+fn filled_bytes(len: usize, value: u8) -> Result<Vec<u8>> {
+    let mut bytes = Vec::new();
+    bytes.try_reserve_exact(len)?;
+    bytes.resize(len, value);
+    Ok(bytes)
+}
+
+/// CPU-only letterboxing, kept separate so parity tests need no model or device.
+fn preprocess_bytes(
+    images: &[&Image<u8, 3>],
+    target: usize,
+) -> Result<(Vec<u8>, Vec<PadInfo>)> {
+    anyhow::ensure!(
+        target > 0 && target <= u32::MAX as usize,
+        "invalid detector input_size"
+    );
+    let frame_len = checked_rgb_len(target, target)?;
+    let batch_len = frame_len
+        .checked_mul(images.len())
+        .filter(|&n| n <= isize::MAX as usize)
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "detector batch size overflows addressable storage"
+            )
+        })?;
+    let mut padded = filled_bytes(batch_len, 114)?;
+    let mut pad_infos = Vec::new();
+    pad_infos.try_reserve_exact(images.len())?;
+    // Reuse the owned contiguous destination for consecutive matching sizes.
+    // Kornia has no safe strided-ROI destination API.
+    let mut scratch: Option<Image<u8, 3>> = None;
+
+    for (batch_index, image) in images.iter().enumerate() {
+        let size = image.size();
+
+        anyhow::ensure!(
+            size.width > 0
+                && size.height > 0
+                && size.width <= u32::MAX as usize
+                && size.height <= u32::MAX as usize,
+            "invalid source image dimensions"
+        );
+        anyhow::ensure!(
+            image.as_slice().len()
+                == checked_rgb_len(size.width, size.height)?,
+            "invalid source RGB storage length"
+        );
+        let ratio = (target as f64 / size.width as f64)
+            .min(target as f64 / size.height as f64);
+
+        let new_w = (size.width as f64 * ratio).round() as usize;
+        let new_h = (size.height as f64 * ratio).round() as usize;
+        // Keep rounding unchanged; a degenerate extreme aspect ratio is an
+        // error rather than silently changing the sampling geometry.
+        anyhow::ensure!(
+            new_w > 0 && new_h > 0 && new_w <= target && new_h <= target,
+            "rounded letterbox dimensions are invalid"
+        );
+        let resized_size = ImageSize {
+            width: new_w,
+            height: new_h,
+        };
+        let resized_data = if size == resized_size {
+            // No resize allocation or intermediate copy for matching images.
+            image.as_slice()
+        } else {
+            if scratch.as_ref().map(|s| s.size()) != Some(resized_size) {
+                scratch = Some(Image::new(
+                    resized_size,
+                    filled_bytes(checked_rgb_len(new_w, new_h)?, 0)?,
+                )?);
+            }
+            let resized =
+                scratch.as_mut().expect("resize scratch initialized");
+            resize_fast(image, resized, InterpolationMode::Nearest)?;
+            resized.as_slice()
+        };
+
+        let dw = (target - new_w) / 2;
+        let dh = (target - new_h) / 2;
+        let batch_offset = batch_index * frame_len;
+        let row_len = new_w * 3;
+        for (y, row) in resized_data.chunks_exact(row_len).enumerate() {
+            let dst = batch_offset + ((y + dh) * target + dw) * 3;
+            padded[dst..dst + row_len].copy_from_slice(row);
+        }
+        pad_infos.push(PadInfo {
+            ratio,
+            dw: dw as f64,
+            dh: dh as f64,
+        });
+    }
+
+    Ok((padded, pad_infos))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn device_policy() {
+        for cuda in [false, true] {
+            for mps in [false, true] {
+                assert_eq!(
+                    ModelDevice::Auto.resolve(cuda, mps).unwrap(),
+                    if cuda {
+                        Device::Cuda(0)
+                    } else if mps {
+                        Device::Mps
+                    } else {
+                        Device::Cpu
+                    }
+                );
+                assert_eq!(
+                    ModelDevice::Cpu.resolve(cuda, mps).unwrap(),
+                    Device::Cpu
+                );
+                assert_eq!(ModelDevice::Cuda.resolve(cuda, mps).is_ok(), cuda);
+                assert_eq!(ModelDevice::Mps.resolve(cuda, mps).is_ok(), mps);
+            }
+        }
+    }
+
+    #[test]
+    fn cpu_tensor_preprocessing_parity() -> Result<()> {
+        let frames = [image(7, 4), image(3, 7)];
+        let refs: Vec<_> = frames.iter().collect();
+        let (bytes, _) = preprocess_bytes(&refs, 7)?;
+        let tensor = bytes_to_tensor(&bytes, 2, 7, Device::Cpu, Kind::Float)?;
+        assert_eq!(tensor.size(), [2, 3, 7, 7]);
+        assert_eq!(tensor.kind(), Kind::Float);
+        assert_eq!(tensor.device(), Device::Cpu);
+        let actual = Vec::<f32>::try_from(tensor.contiguous().reshape([-1]))?;
+        let mut expected = Vec::new();
+        for b in 0..2 {
+            for c in 0..3 {
+                for p in 0..49 {
+                    expected.push(bytes[b * 147 + p * 3 + c] as f32 / 255.0);
+                }
+            }
+        }
+        // CPU FP32 numerical contract, not cross-backend bit equality.
+        assert_eq!(actual.len(), expected.len());
+        for (actual, expected) in actual.iter().zip(expected) {
+            assert!((actual - expected).abs() <= 1e-7);
+        }
+        Ok(())
+    }
+
+    fn image(w: usize, h: usize) -> Image<u8, 3> {
+        Image::new(
+            ImageSize {
+                width: w,
+                height: h,
+            },
+            (0..w * h * 3).map(|i| (i % 251) as u8).collect(),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn letterbox_matches_pixel_copy_reference() -> Result<()> {
+        // Square/no resize, odd vertical/horizontal padding, up/down sampling,
+        // repeated sizes (scratch reuse), and a size change in the same batch.
+        let frames: Vec<_> =
+            [(7, 7), (7, 4), (4, 7), (13, 8), (13, 8), (2, 3), (1, 7)]
+                .into_iter()
+                .map(|(w, h)| image(w, h))
+                .collect();
+        let refs: Vec<_> = frames.iter().collect();
+        let (actual, infos) = preprocess_bytes(&refs, 7)?;
+        let mut expected = vec![114; actual.len()];
+        for (b, src) in frames.iter().enumerate() {
+            let size = src.size();
+            let ratio =
+                (7.0 / size.width as f64).min(7.0 / size.height as f64);
+            let w = (size.width as f64 * ratio).round() as usize;
+            let h = (size.height as f64 * ratio).round() as usize;
+            let mut resized = Image::from_size_val(
                 ImageSize {
-                    width: new_w,
-                    height: new_h,
+                    width: w,
+                    height: h,
                 },
                 0,
             )?;
-            resize_fast(image, &mut resized, InterpolationMode::Nearest)?;
-
-            let dw = (target - new_w) / 2;
-            let dh = (target - new_h) / 2;
-            let resized_data = resized.storage.as_slice();
-            let batch_offset = batch_index * target * target * 3;
-            for y in 0..new_h {
-                let dst_row = (y + dh) * target;
-                let src_row = y * new_w;
-
-                for x in 0..new_w {
-                    let dst_idx = batch_offset + (dst_row + (x + dw)) * 3;
-                    let src_idx = (src_row + x) * 3;
-
-                    padded[dst_idx] = resized_data[src_idx];
-                    padded[dst_idx + 1] = resized_data[src_idx + 1];
-                    padded[dst_idx + 2] = resized_data[src_idx + 2];
+            resize_fast(src, &mut resized, InterpolationMode::Nearest)?;
+            let dw = (7 - w) / 2;
+            let dh = (7 - h) / 2;
+            for y in 0..h {
+                for x in 0..w {
+                    for c in 0..3 {
+                        expected[b * 147 + ((y + dh) * 7 + x + dw) * 3 + c] =
+                            resized.as_slice()[(y * w + x) * 3 + c];
+                    }
                 }
             }
-            pad_infos.push(PadInfo {
-                ratio,
-                dw: dw as f64,
-                dh: dh as f64,
-            });
+            assert_eq!(infos[b].ratio, ratio);
+            assert_eq!(infos[b].dw, dw as f64);
+            assert_eq!(infos[b].dh, dh as f64);
         }
+        assert_eq!(actual, expected);
+        // Three missing rows: one above, two below (integer floor centering).
+        assert_eq!(&actual[147..168], &[114; 21]);
+        assert_eq!(&actual[252..294], &[114; 42]);
+        Ok(())
+    }
 
-        let tensor = Tensor::from_slice(&padded)
-            .reshape([images.len() as i64, target as i64, target as i64, 3])
-            .permute([0, 3, 1, 2])
-            .to_kind(self.input_kind)
-            / 255.0;
-
-        let tensor = tensor.to(self.device);
-        Ok((tensor, pad_infos))
+    #[test]
+    fn invalid_sizes_and_empty_batch() {
+        assert!(preprocess_bytes(&[], 0).is_err());
+        assert!(preprocess_bytes(&[], usize::MAX).is_err());
+        assert!(checked_rgb_len(usize::MAX, 2).is_err());
+        let thin = image(100, 1);
+        assert!(preprocess_bytes(&[&thin], 1).is_err());
+        let (bytes, infos) = preprocess_bytes(&[], 7).unwrap();
+        assert!(bytes.is_empty() && infos.is_empty());
+        for input_size in [0, -1] {
+            assert!(
+                YoloDetector::with_device(
+                    "nonexistent-model",
+                    input_size,
+                    ModelDevice::Cpu,
+                )
+                .is_err()
+            );
+        }
     }
 }
