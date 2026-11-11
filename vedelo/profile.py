@@ -33,11 +33,10 @@ MODEL_DIRS = (
 PROFILE = re.compile(
     r"^Profile: (\d+) frames in ([\d.]+)s \(([\d.]+) FPS\)$", re.MULTILINE
 )
-NOTE = (
-    "Runtime timing includes first inference and encoder flush, not startup. "
-    "No warmup. CPU/MPS use FP32; CUDA uses FP16. CUDA decode confirms a "
-    "device context, not per-frame NVDEC use."
-)
+NOTE = """Runtime timing includes first inference and encoder flush, not startup.
+No warmup. CPU/MPS use FP32; CUDA uses FP16. CUDA decode confirms a device context,
+not per-frame NVDEC use.
+"""
 
 
 def parse_args() -> argparse.Namespace:
