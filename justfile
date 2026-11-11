@@ -204,3 +204,8 @@ train:
 [group("vedelo")]
 track:
     uv run --locked python -m vedelo.track
+
+[group("runtime")]
+[positional-arguments]
+profile *args: build
+    uv run --locked python -m vedelo.profile "$@"

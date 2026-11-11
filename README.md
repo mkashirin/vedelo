@@ -66,13 +66,38 @@ but may increase bitrate at the same CQ quality setting. On macOS, use CPU
 codecs even with MPS inference. CUDA-traced device operations are not made
 portable by changing `--device`.
 
-The bundled `just run-v1n` and `just run-v1s` recipes use CUDA exports;
-`just run-downloaded-v1s` uses the downloaded CPU export with MPS. Paths and
+The bundled `just run-v1n-cuda` and `just run-v1s-cuda` recipes use CUDA exports;
+`just run-hf-v1s-mps` uses the downloaded CPU export with MPS. Paths and
 tracking settings are defined in `justfile`.
 
-## Measured inference performance
+## Profiling
 
-*TODO!*
+```bash
+just profile          # Build release and profile available devices/codecs
+just profile --help
+```
+
+Linux profiles CPU/CUDA combinations; macOS profiles CPU/MPS with CPU codecs.
+Detailed logs, metadata and summaries go to `training-stage/artifacts/profiles/`.
+
+### Results: Ryzen 5 5600X / RTX 5060, WSL2
+
+v1s at 1280, batch 8; 202 frames, 1800 × 1100 at 20 FPS. Medians of three
+full-video runs, excluding startup. CPU uses FP32; CUDA uses FP16.
+
+| Inference | Decode | Encode | Time (s) | FPS |
+|---|---|---|---:|---:|
+| CPU | CPU | libx264 | 114.156 | 1.77 |
+| CPU | CPU | NVENC | 109.629 | 1.84 |
+| CPU | CUDA | libx264 | 113.867 | 1.77 |
+| CPU | CUDA | NVENC | 109.919 | 1.84 |
+| CUDA | CPU | libx264 | 6.118 | 33.02 |
+| CUDA | CPU | NVENC | 5.719 | 35.32 |
+| CUDA | CUDA | libx264 | 6.262 | 32.26 |
+| CUDA | CUDA | NVENC | 5.917 | 34.14 |
+
+Codec settings are not quality-equivalent; CUDA decode does not verify per-frame
+NVDEC use. Mac results are pending; run the same `just profile` command there.
 
 ## Train and export
 
