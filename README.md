@@ -80,10 +80,14 @@ just profile --help
 Linux profiles CPU/CUDA combinations; macOS profiles CPU/MPS with CPU codecs.
 Detailed logs, metadata and summaries go to `training-stage/artifacts/profiles/`.
 
-### Results: Ryzen 5 5600X / RTX 5060, WSL2
+### Results
 
 v1s at 1280, batch 8; 202 frames, 1800 × 1100 at 20 FPS. Medians of three
-full-video runs, excluding startup. CPU uses FP32; CUDA uses FP16.
+full-video runs, excluding startup. CPU/MPS use FP32; CUDA uses FP16.
+
+![Profiling throughput by inference device and codecs on both machines](assets/profile.png)
+
+#### Ryzen 5 5600X / RTX 5060, Linux
 
 | Inference | Decode | Encode | Time (s) | FPS |
 |---|---|---|---:|---:|
@@ -97,7 +101,14 @@ full-video runs, excluding startup. CPU uses FP32; CUDA uses FP16.
 | CUDA | CUDA | NVENC | 5.917 | 34.14 |
 
 Codec settings are not quality-equivalent; CUDA decode does not verify per-frame
-NVDEC use. Mac results are pending; run the same `just profile` command there.
+NVDEC use.
+
+#### Apple M4 Pro, macOS
+
+| Inference | Decode | Encode | Time (s) | FPS |
+|---|---|---|---:|---:|
+| CPU | CPU | libx264 | 40.452 | 4.99 |
+| MPS | CPU | libx264 | 6.513 | 31.02 |
 
 ## Train and export
 
