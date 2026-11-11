@@ -122,6 +122,24 @@ build-dev:
         && cargo build --locked
 
 [group("runtime")]
+check:
+    {{pkg_env}} \
+    LIBTORCH="$("{{python}}" -c \
+        'import pathlib, torch; print(pathlib.Path(torch.__file__).parent)')" \
+        && export LIBTORCH \
+        && cd runtime \
+        && cargo check --locked
+
+[group("runtime")]
+test:
+    {{pkg_env}} \
+    LIBTORCH="$("{{python}}" -c \
+        'import pathlib, torch; print(pathlib.Path(torch.__file__).parent)')" \
+        && export LIBTORCH \
+        && cd runtime \
+        && cargo test --locked
+
+[group("runtime")]
 run-v1n:
     ./vedelo-rt \
         -m {{exported_models}}/v1n_batch8_imgsz1280_best_cuda.torchscript \
@@ -148,9 +166,9 @@ run-v1s:
 [group("runtime")]
 run-downloaded-v1s:
     ./vedelo-rt \
-        -m models/torchscript/v1s_batch8_imgsz1280_best_cuda.torchscript \
+        -m models/torchscript/v1s_batch8_imgsz1280_best_cpu.torchscript \
         -s training-stage/dataset/test/video_test.mp4 \
-        -d assets/video_track_by_v1s_batch8_imgsz1280_best_cuda.mp4 \
+        -d assets/video_track_by_v1s_batch8_imgsz1280_best_mps.mp4 \
         --device mps \
         --conf 0.7 \
         --iou-thresh 0.1 \

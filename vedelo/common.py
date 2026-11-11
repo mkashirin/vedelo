@@ -1,10 +1,9 @@
-from typing import Literal
 import os
 from pathlib import Path
+from typing import Literal
 
-from huggingface_hub import hf_hub_download, snapshot_download
 import torch as pt
-
+from huggingface_hub import hf_hub_download, snapshot_download
 
 DATASET_REPO_ID = "mkashirin/vedelo-dataset-v1"
 MODEL_REPO_ID = "mkashirin/vedelo-v1"
@@ -24,14 +23,22 @@ def hf_hub_download_model_v1(
     checkpoint: Literal["epoch20", "epoch40", "epoch60", "best"] = "best",
     batch: Literal[8, 12] = 8,
     imgsz: int = 1280,
+    device: Literal["cpu", "cuda"] = "cpu",
     format: Literal["pt", "torchscript", "onnx"] = "torchscript",
     local_dir: Path = Path("models"),
+    force_download: bool = False,
 ) -> None:
-    filename = f"v1{size}_batch{batch}_imgsz{imgsz}_{checkpoint}_cuda.{format}"
+    filename = (
+        f"v1{size}_batch{batch}_imgsz{imgsz}_{checkpoint}_{device}.{format}"
+    )
     if not local_dir.exists():
         os.mkdir("models")
     hf_hub_download(
-        MODEL_REPO_ID, filename, subfolder=format, local_dir=local_dir
+        MODEL_REPO_ID,
+        filename,
+        subfolder=format,
+        local_dir=local_dir,
+        force_download=force_download,
     )
 
 
