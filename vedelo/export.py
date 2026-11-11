@@ -8,7 +8,7 @@ from vedelo.common import torch_device_available
 
 
 ROOT_DIR = "training-stage/artifacts"
-NAME = "v1s_batch12_imgsz1280"
+NAME = "v1n_batch12_imgsz1280"
 PROJECT = f"{ROOT_DIR}/{NAME}"
 EXPORT_PATH = f"{ROOT_DIR}/exported"
 CHECKPOINT = "best"
@@ -25,7 +25,11 @@ if __name__ == "__main__":
     for format in EXPORT_FORMATS:
         if not Path(f"{EXPORT_PATH}/{export_name}.{format}").exists():
             model.export(
-                format=format, dynamic=True, device=DEVICE, quantize=QUANTIZE
+                format=format,
+                dynamic=True,
+                device=DEVICE,
+                quantize=QUANTIZE,
+                nms=False,
             )
 
     weights_dir = Path(f"{PROJECT}/weights")
