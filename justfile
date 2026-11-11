@@ -140,7 +140,7 @@ test:
         && cargo test --locked
 
 [group("runtime")]
-run-v1n:
+run-v1n-cuda:
     ./vedelo-rt \
         -m {{exported_models}}/v1n_batch8_imgsz1280_best_cuda.torchscript \
         -s training-stage/dataset/test/video_test.mp4 \
@@ -152,7 +152,7 @@ run-v1n:
         --profile
 
 [group("runtime")]
-run-v1s:
+run-v1s-cuda:
     ./vedelo-rt \
         -m {{exported_models}}/v1s_batch8_imgsz1280_best_cuda.torchscript \
         -s training-stage/dataset/test/video_test.mp4 \
@@ -164,7 +164,7 @@ run-v1s:
         --profile
 
 [group("runtime")]
-run-downloaded-v1s:
+run-hf-v1s-mps:
     ./vedelo-rt \
         -m models/torchscript/v1s_batch8_imgsz1280_best_cpu.torchscript \
         -s training-stage/dataset/test/video_test.mp4 \

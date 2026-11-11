@@ -59,9 +59,12 @@ Run a compatible TorchScript export:
 - `--decode-backend cpu|cuda|auto` and `--encode-backend cpu|cuda|auto`:
   codec selection, independent of inference; both default to CPU.
 
-CPU encoding uses libx264; NVIDIA encoding uses h264_nvenc. Output has no audio.
-On macOS, use CPU codecs even with MPS inference. CUDA-traced device operations
-are not made portable by changing `--device`.
+CPU encoding uses libx264; NVIDIA encoding uses h264_nvenc. NVENC uses no
+B-frames to avoid FFmpeg 6.1.1's reorder-delay timestamp issue with the
+runtime's 90 kHz clock. This preserves source presentation timestamps,
+but may increase bitrate at the same CQ quality setting. On macOS, use CPU
+codecs even with MPS inference. CUDA-traced device operations are not made
+portable by changing `--device`.
 
 The bundled `just run-v1n` and `just run-v1s` recipes use CUDA exports;
 `just run-downloaded-v1s` uses the downloaded CPU export with MPS. Paths and

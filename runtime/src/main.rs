@@ -72,6 +72,7 @@ fn parse_batch_size(value: &str) -> std::result::Result<usize, String> {
 
 struct PendingFrame {
     time: video_rs::Time,
+    duration: video_rs::Time,
     image: Image<u8, 3>,
     height: usize,
     width: usize,
@@ -79,6 +80,14 @@ struct PendingFrame {
 
 fn main() -> Result<()> {
     video_rs::init().map_err(|e| anyhow::anyhow!(e.to_string()))?;
+    // video-rs routes FFmpeg diagnostics to tracing, but this executable has
+    // no tracing subscriber. Keep native codec/muxer errors visible on stderr.
+    unsafe {
+        ffmpeg_next::ffi::av_log_set_callback(Some(
+            ffmpeg_next::ffi::av_log_default_callback,
+        ));
+    }
+    ffmpeg_next::util::log::set_level(ffmpeg_next::util::log::Level::Warning);
     let args = Args::parse();
 
     let detector =
@@ -114,8 +123,8 @@ fn main() -> Result<()> {
                 while let Some(pending) =
                     pipeline::next_batch(batch_size, || {
                         let mut next = || -> Result<Option<PendingFrame>> {
-                            let Some((time, frame_array)) =
-                                video::decoded_frame(decoder.decode())?
+                            let Some((time, duration, frame_array)) =
+                                video::decoded_frame(&mut decoder)?
                             else {
                                 return Ok(None);
                             };
@@ -138,6 +147,7 @@ fn main() -> Result<()> {
 
                             Ok(Some(PendingFrame {
                                 time,
+                                duration,
                                 image,
                                 height: h,
                                 width: w,
@@ -172,8 +182,8 @@ fn main() -> Result<()> {
                 // Scaling context stays on the encoding thread and is reused.
                 let mut scaler = encoder.scaler()?;
                 for batch in rx {
-                    for (time, frame) in batch {
-                        encoder.encode(&frame, time, &mut scaler)?;
+                    for (time, duration, frame) in batch {
+                        encoder.encode(&frame, time, duration, &mut scaler)?;
                     }
                 }
                 encoder.finish()
@@ -205,7 +215,7 @@ fn process_batch(
     unique_ids: &mut HashSet<usize>,
     frame_count: &mut usize,
     args: &Args,
-) -> Result<Vec<(video_rs::Time, Array3<u8>)>> {
+) -> Result<Vec<(video_rs::Time, video_rs::Time, Array3<u8>)>> {
     let images = pending.iter().map(|frame| &frame.image).collect::<Vec<_>>();
     let detections_per_frame = detector.detect_batch(&images, args.conf)?;
     anyhow::ensure!(
@@ -264,7 +274,11 @@ fn process_batch(
         )?;
 
         // 4. Encode with the ORIGINAL timestamp
-        output.push((pending_frame.time, out_frame_array));
+        output.push((
+            pending_frame.time,
+            pending_frame.duration,
+            out_frame_array,
+        ));
 
         *frame_count += 1;
         if args.log_every != 0 && *frame_count % args.log_every == 0 {
