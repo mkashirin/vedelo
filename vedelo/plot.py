@@ -1,54 +1,74 @@
-import polars as pl
+"""Plot the profiling measurements documented in the README."""
+
+from pathlib import Path
+
 import matplotlib.pyplot as plt
 
+type Measurement = tuple[str, str, str, float]
 
-RESULTS = "artifacts/vedelo-v1s/results.csv"
+
+def measurements(readme: Path) -> dict[str, list[Measurement]]:
+    results = readme.read_text().split("### Results\n", 1)[1]
+    results = results.split("\n## ", 1)[0]
+    groups: dict[str, list[Measurement]] = {}
+    for section in results.split("\n#### ")[1:]:
+        title, _, table = section.partition("\n")
+        rows: list[Measurement] = []
+        for line in table.splitlines():
+            if not line.startswith(("| CPU |", "| CUDA |", "| MPS |")):
+                continue
+            device, decode, encode, _, fps = (
+                cell.strip() for cell in line.strip("|").split("|")
+            )
+            rows.append((device, decode, encode, float(fps)))
+        groups[title] = rows
+    return groups
+
+
+def main() -> None:
+    plt.switch_backend("Agg")
+    root = Path(__file__).resolve().parents[1]
+    groups = measurements(root / "README.md")
+    colors = {"CPU": "#b45309", "CUDA": "#047857", "MPS": "#2563eb"}
+    figure, axes = plt.subplots(
+        len(groups),
+        1,
+        figsize=(10, 7.4),
+        sharex=True,
+        height_ratios=[len(rows) for rows in groups.values()],
+        layout="constrained",
+    )
+    figure.suptitle("Runtime throughput", fontsize=18, fontweight="bold")
+    figure.supylabel("Inference / Decode / Encode", fontsize=11)
+    for axis, (title, rows) in zip(axes, groups.items(), strict=True):
+        labels = [
+            f"{device} / {decode} / {encode}" for device, decode, encode, _ in rows
+        ]
+        bars = axis.barh(
+            labels,
+            [fps for _, _, _, fps in rows],
+            color=[colors[device] for device, _, _, _ in rows],
+            edgecolor="#6b7280",
+            linewidth=0.8,
+            height=0.65,
+            zorder=3,
+        )
+        axis.bar_label(bars, fmt="%.2f", padding=5, fontsize=10)
+        axis.invert_yaxis()
+        axis.set_title(title, loc="left", fontsize=12, fontweight="bold", pad=12)
+        axis.set_xlim(0, 40)
+        axis.set_facecolor("#f5f6f8")
+        axis.set_axisbelow(True)
+        axis.grid(axis="x", color="#d9dde3", linewidth=0.7)
+        axis.tick_params(axis="both", length=0, labelsize=10, pad=8)
+        for spine in axis.spines.values():
+            spine.set_visible(True)
+            spine.set_color("#9ca3af")
+            spine.set_linewidth(0.8)
+    axes[-1].set_xlabel("Frames per second (higher is better)", labelpad=10)
+    figure.savefig(root / "assets/profile.png", dpi=180, facecolor="white")
+    plt.close(figure)
+
 
 if __name__ == "__main__":
-    df = pl.read_csv(RESULTS)
-    epochs = df["epoch"].to_numpy()
-
-    plt.figure(figsize=(16, 10))
-
-    plt.subplot(2, 2, 1)
-    plt.plot(epochs, df["train/box_loss"].to_numpy(), label="Train Box")
-    plt.plot(epochs, df["val/box_loss"].to_numpy(), label="Val Box")
-    plt.plot(epochs, df["train/cls_loss"].to_numpy(), label="Train Cls")
-    plt.plot(epochs, df["val/cls_loss"].to_numpy(), label="Val Cls")
-    plt.title("Loss Curves")
-    plt.xlabel("Epoch")
-    plt.ylabel("Loss")
-    plt.legend()
-    plt.grid(True)
-
-    plt.subplot(2, 2, 2)
-    plt.plot(epochs, df["metrics/mAP50(B)"].to_numpy(), label="mAP50")
-    plt.plot(epochs, df["metrics/mAP50-95(B)"].to_numpy(), label="mAP50-95")
-    plt.title("mAP Metrics")
-    plt.xlabel("Epoch")
-    plt.ylabel("mAP")
-    plt.legend()
-    plt.grid(True)
-
-    plt.subplot(2, 2, 3)
-    plt.plot(epochs, df["metrics/precision(B)"].to_numpy(), label="Precision")
-    plt.plot(epochs, df["metrics/recall(B)"].to_numpy(), label="Recall")
-    plt.title("Precision & Recall")
-    plt.xlabel("Epoch")
-    plt.ylabel("Score")
-    plt.legend()
-    plt.grid(True)
-
-    plt.subplot(2, 2, 4)
-    plt.plot(epochs, df["lr/pg0"].to_numpy(), label="LR")
-    plt.title("Learning Rate")
-    plt.xlabel("Epoch")
-    plt.ylabel("LR")
-    plt.legend()
-    plt.grid(True)
-
-    plt.tight_layout()
-    plt.savefig("static/training_results.png", dpi=300)
-    plt.close()
-
-    print("Saved training_results.png")
+    main()

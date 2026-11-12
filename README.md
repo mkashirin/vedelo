@@ -75,6 +75,7 @@ tracking settings are defined in `justfile`.
 ```bash
 just profile          # Build release and profile available devices/codecs
 just profile --help
+uv run --locked python -m vedelo.plot  # Regenerate the plot from README tables
 ```
 
 Linux profiles CPU/CUDA combinations; macOS profiles CPU/MPS with CPU codecs.
